@@ -1,31 +1,20 @@
 package protect
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
-func TestWriteIfChanged(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "dropin.conf")
-	changed, err := writeIfChanged(p, "hello\n", 0644)
-	if err != nil || !changed {
-		t.Fatalf("first: changed=%v err=%v", changed, err)
+func TestSplitSSHAddr(t *testing.T) {
+	h, p := splitSSHAddr("195.58.153.30:22")
+	if h != "195.58.153.30" || p != "22" {
+		t.Fatalf("%s %s", h, p)
 	}
-	changed, err = writeIfChanged(p, "hello\n", 0644)
-	if err != nil || changed {
-		t.Fatalf("same: changed=%v err=%v", changed, err)
+	h, p = splitSSHAddr("[::1]:22")
+	if h != "::1" || p != "22" {
+		t.Fatalf("%s %s", h, p)
 	}
-	changed, err = writeIfChanged(p, "bye\n", 0600)
-	if err != nil || !changed {
-		t.Fatalf("diff: changed=%v err=%v", changed, err)
+	if sshAddrPort("0.0.0.0:2222") != 2222 {
+		t.Fatal("port")
 	}
-	st, err := os.Stat(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st.Mode().Perm() != 0600 {
-		t.Fatalf("mode %v", st.Mode().Perm())
+	if sshAddrHost("[2001:db8::1]:44122") != "2001:db8::1" {
+		t.Fatal("host")
 	}
 }

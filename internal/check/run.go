@@ -20,7 +20,7 @@ var dbPorts = map[int]string{
 }
 
 var suidAllow = map[string]bool{
-	"passwd": true, "sudo": true, "sudo.ws": true, "su": true, "newgrp": true, "mount": true, "umount": true,
+	"passwd": true, "sudo": true, "sudo.ws": true, "sudo-rs": true, "su": true, "newgrp": true, "mount": true, "umount": true,
 	"chsh": true, "chfn": true, "gpasswd": true, "fusermount": true, "fusermount3": true,
 	"pkexec": true, "ping": true, "ping6": true, "pppd": true, "ntfs-3g": true,
 	"dbus-daemon-launch-helper": true, "unix_chkpwd": true, "crontab": true, "ssh-keysign": true,
@@ -149,7 +149,7 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 		if dockerDB {
 			auto = false
 			fix = "none"
-			plain = "Docker выставил базу в интернет: " + strings.Join(exposed, ", ") + ". Контейнер не трогаю, чтобы не сломать проект. Уберите проброс порта или слушайте только 127.0.0.1."
+			plain = "Docker сам выставил базу в интернет: " + strings.Join(exposed, ", ") + ". Контейнер не трогаю — так вы настроили проброс. Фильтр это не закроет. Уберите проброс порта или слушайте только на сервере (127.0.0.1)."
 		} else {
 			plain = "С улицы видна база: " + strings.Join(exposed, ", ") + ". Так часто воруют данные."
 		}
@@ -343,7 +343,11 @@ func permChecks(s facts.Snapshot) []Finding {
 	}
 	st, plain := Pass, "Права на важные файлы в порядке."
 	if len(bad) > 0 {
-		st, plain = Fail, "Плохие права на "+strings.Join(bad, ", ")
+		names := make([]string, 0, len(bad))
+		for _, p := range bad {
+			names = append(names, friendlyPermPath(p))
+		}
+		st, plain = Fail, "Плохие права на "+strings.Join(names, ", ")
 	}
 	out := []Finding{f("PERM-SHADOW", "Права важных файлов", SevHigh, st, plain, "protect", true, nil, bad)}
 	sst, splain := Pass, "Файлы Defendra закрыты от посторонних."
@@ -364,9 +368,9 @@ func suidChecks(s facts.Snapshot) []Finding {
 	}
 	st, plain := Pass, "Необычных SUID-файлов нет."
 	if len(unusual) > 0 {
-		st, plain = Warn, "Найдены необычные SUID-файлы. Сами не удаляем."
+		st, plain = Warn, "Найдены программы с особыми правами. Сами не удаляем."
 	}
-	return []Finding{f("SUID-UNUSUAL", "Необычные SUID", SevLow, st, plain, "none", false, nil, unusual)}
+	return []Finding{f("SUID-UNUSUAL", "Особые права у программ", SevLow, st, plain, "none", false, nil, unusual)}
 }
 
 func yes(v string) bool {
@@ -380,6 +384,22 @@ func listening(s facts.Snapshot, port int) bool {
 		}
 	}
 	return false
+}
+
+func friendlyPermPath(p string) string {
+	switch p {
+	case "/etc/shadow", "/etc/gshadow":
+		return "файл паролей"
+	case "/etc/sudoers":
+		return "файл прав администратора"
+	case "/etc/ssh/sshd_config":
+		return "файл входа"
+	default:
+		if strings.HasSuffix(p, "authorized_keys") || strings.HasSuffix(p, "/.ssh") {
+			return "ключ входа"
+		}
+		return "служебный файл"
+	}
 }
 
 func HasSudoKey(s facts.Snapshot) bool {

@@ -14,6 +14,8 @@ var sshLockKeys = []string{
 	"PermitEmptyPasswords",
 	"PubkeyAuthentication",
 	"AllowUsers",
+	"DenyUsers",
+	"DenyGroups",
 	"MaxAuthTries",
 	"X11Forwarding",
 	"UseDNS",
@@ -92,17 +94,29 @@ func neutralizeOtherSSHDropins() error {
 		if base == "00-defendra.conf" || base == "99-defendra.conf" {
 			continue
 		}
-		b, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		next, changed := commentSSHLockKeys(string(b))
-		if !changed {
-			continue
-		}
-		if err := os.WriteFile(p, []byte(next), 0644); err != nil {
+		if err := neutralizeFile(p); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func neutralizeSSHMain() error {
+	return neutralizeFile("/etc/ssh/sshd_config")
+}
+
+func neutralizeFile(path string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	next, changed := commentSSHLockKeys(string(b))
+	if !changed {
+		return nil
+	}
+	mode := os.FileMode(0644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	return os.WriteFile(path, []byte(next), mode)
 }

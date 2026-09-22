@@ -42,3 +42,27 @@ func TestCommentSSHLockKeysUseDNS(t *testing.T) {
 		t.Fatalf("listen lost: %s", out)
 	}
 }
+
+func TestCommentSSHLockKeysMatchAndDeny(t *testing.T) {
+	in := `Match User ubuntu
+    PasswordAuthentication yes
+DenyUsers admin
+ListenAddress 0.0.0.0
+`
+	out, changed := commentSSHLockKeys(in)
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(out, "# defendra:     PasswordAuthentication yes") && !strings.Contains(out, "# defendra: PasswordAuthentication yes") {
+		t.Fatalf("match password: %s", out)
+	}
+	if !strings.Contains(out, "# defendra: DenyUsers admin") {
+		t.Fatalf("deny: %s", out)
+	}
+	if !strings.Contains(out, "Match User ubuntu") {
+		t.Fatalf("match header lost: %s", out)
+	}
+	if !strings.Contains(out, "ListenAddress 0.0.0.0") {
+		t.Fatalf("listen lost: %s", out)
+	}
+}

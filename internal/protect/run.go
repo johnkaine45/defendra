@@ -112,7 +112,7 @@ Enter, если спросит перезаписать — напишите n (
 Фильтр входящих подключений включу.
 Уже работающие сайты и программы не трогаю.
 
-Это не щит от большой атаки на канал. Её включает хостер в панели.`)
+Это не щит от большой атаки на канал. Её включает хостер в панели VDS.`)
 		if err != nil {
 			u.Print(ui.Interrupted())
 			return 2
@@ -237,7 +237,7 @@ Enter, если спросит перезаписать — напишите n (
 	} else {
 		u.Progress(3, total, "Включаю фильтр входящих подключений…")
 	}
-	armSSHWatchdog(ctx)
+	armSSHWatchdog(ctx, snap.Host.SSHPort)
 	if err := setupUFW(ctx, snap.Host.SSHPort, snap, allowPanel, keep); err != nil {
 		u.Printf("Не получилось включить фильтр: %v\nSSH не закрываю.\n", err)
 		return 2
@@ -245,7 +245,7 @@ Enter, если спросит перезаписать — напишите n (
 
 	u.Progress(4, total, "Проверяю защиту от подбора пароля…")
 	banOK := true
-	if err := setupFail2ban(ctx, hi.SSHClient); err != nil {
+	if err := setupFail2ban(ctx, hi.SSHClient, snap.Host.SSHPort); err != nil {
 		banOK = false
 		u.Println("Не запустилась защита от подбора пароля. Пароль SSH не закрываю.")
 		u.Println("Повторите позже: sudo defendra protect")
@@ -490,10 +490,16 @@ func listening(s facts.Snapshot, port int) bool {
 	return false
 }
 
-func setupFail2ban(ctx context.Context, clientIP string) error {
+func setupFail2ban(ctx context.Context, clientIP string, sshPort int) error {
 	ignore := "127.0.0.1/8 ::1"
 	if clientIP != "" {
 		ignore += " " + clientIP
+	}
+	for _, ip := range establishedSSHPeers(ctx, sshPort) {
+		if ip == "" || ip == clientIP {
+			continue
+		}
+		ignore += " " + ip
 	}
 	body := fmt.Sprintf(`[sshd]
 enabled = true
@@ -801,7 +807,7 @@ UseDNS no
 GSSAPIAuthentication no
 ClientAliveInterval 60
 ClientAliveCountMax 3
-MaxAuthTries 6
+MaxAuthTries 3
 AllowUsers %s
 `, strings.Join(allow, " "))
 	if b, err := os.ReadFile(sshdDropin); err == nil && string(b) == body {
@@ -813,18 +819,33 @@ AllowUsers %s
 	if err != nil {
 		return err
 	}
+	mainPath := "/etc/ssh/sshd_config"
+	mainOrig, mainErr := os.ReadFile(mainPath)
+	undo := func() {
+		_ = restoreSSHDropins(rollback)
+		_ = os.Remove(sshdDropin)
+		if mainErr == nil {
+			mode := os.FileMode(0644)
+			if st, err := os.Stat(mainPath); err == nil {
+				mode = st.Mode().Perm()
+			}
+			_ = os.WriteFile(mainPath, mainOrig, mode)
+		}
+	}
 	if err := writeFile(sshdDropin, body, 0644); err != nil {
 		return err
 	}
 	_ = os.Remove(sshdDropinLegacy)
 	if err := neutralizeOtherSSHDropins(); err != nil {
-		_ = restoreSSHDropins(rollback)
-		_ = os.Remove(sshdDropin)
+		undo()
+		return err
+	}
+	if err := neutralizeSSHMain(); err != nil {
+		undo()
 		return err
 	}
 	if err := reloadSSH(ctx); err != nil {
-		_ = restoreSSHDropins(rollback)
-		_ = os.Remove(sshdDropin)
+		undo()
 		_ = reloadSSH(ctx)
 		return err
 	}
@@ -833,21 +854,18 @@ AllowUsers %s
 		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T")
 	}
 	if err != nil {
-		_ = restoreSSHDropins(rollback)
-		_ = os.Remove(sshdDropin)
+		undo()
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("не смог проверить настройку входа, пароль не закрываю")
 	}
 	eff := facts.ParseSSHDT(out)
 	if strings.EqualFold(eff.PasswordAuth, "yes") || strings.EqualFold(eff.PermitRootLogin, "yes") {
-		_ = restoreSSHDropins(rollback)
-		_ = os.Remove(sshdDropin)
+		undo()
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("настройка SSH не применилась, вход не меняю")
 	}
 	if !allowUsersApplied(eff.AllowUsers, allow) {
-		_ = restoreSSHDropins(rollback)
-		_ = os.Remove(sshdDropin)
+		undo()
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("список пользователей входа не применился, вход не меняю")
 	}
@@ -1224,10 +1242,20 @@ func finishQuiet(_ context.Context, _ host.Info, u *ui.IO, st state.State, snap 
 	saveScan(snap, fs)
 	if st.Level == "green" {
 		audit.Event("protect", "ok", "unchanged")
+		u.Println("Проверил. Менять нечего.")
 	} else {
 		audit.Event("protect", "warn", "unchanged_"+st.Level)
+		u.Println(quietNotGreenLead(fs))
 	}
-	u.Println("Проверил. Менять нечего.")
 	u.Print(ui.PaintFirstLine(report.StatusText(snap, fs, snap.Host.PublicIP, user), st.Level, u.Color))
 	return exitIfNotGreen(st.Level)
+}
+
+func quietNotGreenLead(fs []check.Finding) string {
+	for _, f := range fs {
+		if f.ID == "NET-DB-EXPOSED" && f.Status == check.Fail && f.Fix == "none" {
+			return "Проверил. Контейнеры не трогал — так вы сами пробросили порт.\nС улицы база видна. Фильтр это не закроет."
+		}
+	}
+	return "Проверил. Часть защиты ещё не зелёная."
 }

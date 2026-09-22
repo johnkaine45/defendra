@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -74,27 +75,92 @@ func ensureSSHListener(ctx context.Context) {
 	}
 }
 
-func armSSHWatchdog(ctx context.Context) {
+func armSSHWatchdog(ctx context.Context, port int) {
+	if port <= 0 || port > 65535 {
+		port = 22
+	}
 	if err := os.MkdirAll(state.Dir, 0755); err != nil {
 		return
 	}
-	body := `#!/bin/bash
+	body := fmt.Sprintf(`#!/bin/bash
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   sleep 2
-  if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE ':22$'; then
+  if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE ':%d$'; then
     exit 0
   fi
   systemctl start ssh.socket >/dev/null 2>&1 || true
   systemctl start ssh >/dev/null 2>&1 || true
   systemctl start sshd >/dev/null 2>&1 || true
 done
-`
+`, port)
 	path := filepath.Join(state.Dir, "ssh-watchdog.sh")
 	if err := writeFile(path, body, 0700); err != nil {
 		return
 	}
 	_, _, _ = oscmd.Run(ctx, 8*time.Second, "systemctl", "reset-failed", "defendra-ssh-watchdog.service")
 	_, _, _ = oscmd.Run(ctx, 8*time.Second, "systemd-run", "--unit=defendra-ssh-watchdog", "--collect", "/bin/bash", path)
+}
+
+func establishedSSHPeers(ctx context.Context, port int) []string {
+	if port <= 0 {
+		port = 22
+	}
+	out, _, err := oscmd.Run(ctx, 8*time.Second, "ss", "-tnH", "state", "established")
+	if err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var ips []string
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		var addrs []string
+		for _, f := range fields {
+			if strings.Contains(f, ":") {
+				addrs = append(addrs, f)
+			}
+		}
+		if len(addrs) < 2 {
+			continue
+		}
+		local, peer := addrs[len(addrs)-2], addrs[len(addrs)-1]
+		if sshAddrPort(local) != port {
+			continue
+		}
+		ip := sshAddrHost(peer)
+		if ip == "" || seen[ip] || ip == "127.0.0.1" || ip == "::1" || ip == "*" {
+			continue
+		}
+		seen[ip] = true
+		ips = append(ips, ip)
+	}
+	return ips
+}
+
+func sshAddrPort(addr string) int {
+	_, p := splitSSHAddr(addr)
+	n, _ := strconv.Atoi(p)
+	return n
+}
+
+func sshAddrHost(addr string) string {
+	h, _ := splitSSHAddr(addr)
+	return strings.Trim(h, "[]")
+}
+
+func splitSSHAddr(addr string) (host, port string) {
+	addr = strings.TrimSpace(addr)
+	if strings.HasPrefix(addr, "[") {
+		i := strings.LastIndex(addr, "]:")
+		if i < 1 {
+			return "", ""
+		}
+		return addr[1:i], addr[i+2:]
+	}
+	i := strings.LastIndex(addr, ":")
+	if i < 0 {
+		return "", ""
+	}
+	return addr[:i], addr[i+1:]
 }
 
 func writeFile(path, body string, mode os.FileMode) error {

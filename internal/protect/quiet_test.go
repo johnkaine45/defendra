@@ -1,8 +1,10 @@
 package protect
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/johnkaine/defendra/internal/check"
 	"github.com/johnkaine/defendra/internal/facts"
 	"github.com/johnkaine/defendra/internal/state"
 )
@@ -93,5 +95,19 @@ func TestExitIfNotGreen(t *testing.T) {
 	}
 	if exitIfNotGreen("yellow") != 1 || exitIfNotGreen("red") != 1 {
 		t.Fatal("not green")
+	}
+}
+
+func TestQuietNotGreenLeadDocker(t *testing.T) {
+	fs := []check.Finding{{ID: "NET-DB-EXPOSED", Status: check.Fail, Fix: "none"}}
+	got := quietNotGreenLead(fs)
+	if !strings.Contains(got, "Контейнеры не трогал") {
+		t.Fatal(got)
+	}
+	if strings.Contains(got, "Менять нечего") {
+		t.Fatal(got)
+	}
+	if quietNotGreenLead(nil) != "Проверил. Часть защиты ещё не зелёная." {
+		t.Fatal(quietNotGreenLead(nil))
 	}
 }

@@ -231,6 +231,9 @@ func TestDockerDBNotAutomatic(t *testing.T) {
 			if f.Status != Fail || f.Automatic {
 				t.Fatalf("%+v", f)
 			}
+			if !strings.Contains(f.Plain, "Фильтр это не закроет") {
+				t.Fatalf("plain: %s", f.Plain)
+			}
 		}
 	}
 }
@@ -257,6 +260,15 @@ func TestProjectPortsSkipsRedis(t *testing.T) {
 	got := ProjectPorts(s)
 	if len(got) != 3 || got[0] != 80 || got[1] != 8888 || got[2] != 3000 {
 		t.Fatalf("want 80,8888,3000 got %v", got)
+	}
+}
+
+func TestFriendlyPermPath(t *testing.T) {
+	if friendlyPermPath("/etc/ssh/sshd_config") != "файл входа" {
+		t.Fatal(friendlyPermPath("/etc/ssh/sshd_config"))
+	}
+	if friendlyPermPath("/home/admin/.ssh/authorized_keys") != "ключ входа" {
+		t.Fatal("keys")
 	}
 }
 

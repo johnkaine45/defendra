@@ -38,13 +38,14 @@ func collect(ctx context.Context, hi host.Info, extra bool) Snapshot {
 		},
 		Sysctl: map[string]string{},
 	}
-	if s.Host.SSHPort == 0 {
-		s.Host.SSHPort = 22
-	}
 	s.Host.PublicIP = firstPublicIP(ctx)
 	s.SSH = collectSSH(ctx)
-	if s.SSH.Port != 0 {
-		s.Host.SSHPort = s.SSH.Port
+	if s.Host.SSHPort == 0 {
+		if s.SSH.Port != 0 {
+			s.Host.SSHPort = s.SSH.Port
+		} else {
+			s.Host.SSHPort = 22
+		}
 	}
 	s.Users = collectUsers()
 	s.Ports = collectPorts(ctx)
@@ -307,14 +308,23 @@ func collectSudo() SudoFact {
 }
 
 func collectSUID(ctx context.Context) []string {
-	out, _, err := oscmd.Run(ctx, 15*time.Second, "find", "/usr/bin", "/usr/sbin", "/bin", "/sbin", "-xdev", "-perm", "-4000")
-	if err != nil {
-		return nil
-	}
+	dirs := []string{"/usr/bin", "/usr/sbin", "/bin", "/sbin", "/usr/lib/cargo/bin"}
+	seen := map[string]bool{}
 	var s []string
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		out, _, err := oscmd.Run(ctx, 15*time.Second, "find", dir, "-xdev", "-perm", "-4000")
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(out, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || seen[line] {
+				continue
+			}
+			seen[line] = true
 			s = append(s, line)
 		}
 	}
