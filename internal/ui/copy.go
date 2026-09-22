@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/johnkaine/defendra/internal/version"
+import (
+	"strings"
+
+	"github.com/johnkaine/defendra/internal/version"
+)
 
 func menuVersion() string {
 	v := version.Version
@@ -22,7 +26,33 @@ func MenuFresh() string {
 `
 }
 
-func MenuAfter(level string) string {
+func ReasonFromMotd(motd string) string {
+	s := strings.TrimSpace(motd)
+	s = strings.TrimPrefix(s, "Defendra: ")
+	s = strings.TrimSuffix(s, " — sudo defendra status")
+	s = strings.TrimSpace(s)
+	switch s {
+	case "", "опасно", "защита неполная", "сервер в порядке":
+		return ""
+	default:
+		return s
+	}
+}
+
+func WhyLine(level, reason, motd string) string {
+	if level == "green" || level == "" {
+		return ""
+	}
+	if reason != "" {
+		return reason
+	}
+	if s := ReasonFromMotd(motd); s != "" {
+		return s
+	}
+	return "Почему — sudo defendra status"
+}
+
+func MenuAfter(level, reason string) string {
 	title := "Defendra — сервер защищён не полностью"
 	if level == "green" {
 		title = "Defendra — сервер в порядке"
@@ -30,7 +60,11 @@ func MenuAfter(level string) string {
 	if level == "red" {
 		title = "Defendra — сервер в опасности"
 	}
-	body := title + "\n" + menuVersion() + `
+	body := title + "\n" + menuVersion()
+	if why := WhyLine(level, reason, ""); why != "" {
+		body += "\n\n" + why
+	}
+	body += `
 
 Что обычно нужно:
   sudo defendra status         всё ли в порядке

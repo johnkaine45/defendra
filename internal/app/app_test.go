@@ -99,7 +99,7 @@ func TestHelpCopy(t *testing.T) {
 }
 
 func TestMenuAfterHasNetBird(t *testing.T) {
-	m := ui.MenuAfter("green")
+	m := ui.MenuAfter("green", "")
 	if !strings.Contains(m, "sudo defendra netbird") {
 		t.Fatal(m)
 	}
@@ -126,12 +126,37 @@ func TestMenuAfterHasNetBird(t *testing.T) {
 func TestMenuShowsVersion(t *testing.T) {
 	v := strings.TrimSpace(strings.TrimPrefix(ui.VersionLine(), "Defendra "))
 	fresh := ui.MenuFresh()
-	after := ui.MenuAfter("green")
+	after := ui.MenuAfter("green", "")
 	if !strings.Contains(fresh, "Версия "+v) {
 		t.Fatal(fresh)
 	}
 	if !strings.Contains(after, "Версия "+v) {
 		t.Fatal(after)
+	}
+}
+
+func TestMenuAfterShowsWhy(t *testing.T) {
+	m := ui.MenuAfter("red", "Появился открытый порт 53. Если это ваш проект — sudo defendra protect.")
+	if !strings.Contains(m, "сервер в опасности") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "Появился открытый порт 53") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "sudo defendra status") {
+		t.Fatal(m)
+	}
+	green := ui.MenuAfter("green", "старая причина")
+	if strings.Contains(green, "старая причина") {
+		t.Fatal(green)
+	}
+	bare := ui.WhyLine("red", "", "Defendra: опасно — sudo defendra status")
+	if bare != "Почему — sudo defendra status" {
+		t.Fatal(bare)
+	}
+	fromMotd := ui.WhyLine("red", "", "Defendra: Появился открытый порт 6379 — sudo defendra status")
+	if fromMotd != "Появился открытый порт 6379" {
+		t.Fatal(fromMotd)
 	}
 }
 

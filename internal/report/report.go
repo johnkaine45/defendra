@@ -189,6 +189,16 @@ func StatusText(s facts.Snapshot, fs []check.Finding, ip, user string) string {
 	return b.String()
 }
 
+func Reason(fs []check.Finding) string {
+	if Level(fs) == "green" {
+		return ""
+	}
+	if p := Primary(fs); p != nil {
+		return strings.TrimSpace(p.Plain)
+	}
+	return ""
+}
+
 func Motd(fs []check.Finding) string {
 	switch Level(fs) {
 	case "green":

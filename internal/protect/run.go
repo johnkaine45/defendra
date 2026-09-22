@@ -349,6 +349,7 @@ Enter, если спросит перезаписать — напишите n (
 	fs := check.Run(snap3, st.SiteAllowed, true, st.KeepPorts)
 	st.Level = report.Level(fs)
 	st.Motd = report.Motd(fs)
+	st.Reason = report.Reason(fs)
 	_ = state.Save(st)
 	saveScan(snap3, fs)
 
@@ -1293,6 +1294,7 @@ func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	fs := check.Run(snap, st.SiteAllowed, st.HasProtect, st.KeepPorts)
 	st.Level = report.Level(fs)
 	st.Motd = report.Motd(fs)
+	st.Reason = report.Reason(fs)
 	_ = state.Save(st)
 	u.Println("Откат сделан. Проверьте вход.")
 	if wasStreetOff {
@@ -1312,6 +1314,7 @@ func Watch(ctx context.Context, hi host.Info) int {
 	fs := check.Run(snap, st.SiteAllowed, st.HasProtect, st.KeepPorts)
 	st.Level = report.Level(fs)
 	st.Motd = report.Motd(fs)
+	st.Reason = report.Reason(fs)
 	_ = state.Save(st)
 	saveScan(snap, fs)
 	fails := 0
@@ -1503,6 +1506,7 @@ func finishQuiet(_ context.Context, _ host.Info, u *ui.IO, st state.State, snap 
 	fs := check.Run(snap, st.SiteAllowed, true, st.KeepPorts)
 	st.Level = report.Level(fs)
 	st.Motd = report.Motd(fs)
+	st.Reason = report.Reason(fs)
 	_ = state.Save(st)
 	saveScan(snap, fs)
 	if st.Level == "green" {

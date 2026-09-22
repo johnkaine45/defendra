@@ -28,7 +28,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "", "menu":
 		st := state.Load()
 		if st.HasProtect {
-			u.Print(ui.PaintFirstLine(ui.MenuAfter(st.Level), st.Level, u.Color))
+			u.Print(ui.PaintFirstLine(ui.MenuAfter(st.Level, ui.WhyLine(st.Level, st.Reason, st.Motd)), st.Level, u.Color))
 		} else {
 			u.Print(ui.PaintFirstLine(ui.MenuFresh(), "green", u.Color))
 		}
@@ -227,6 +227,7 @@ func cmdStatus(ctx context.Context, hi host.Info, u *ui.IO, asJSON bool) int {
 	_ = os.WriteFile(filepath.Join(state.ScansDir(), time.Now().UTC().Format("20060102T150405Z")+".json"), b, 0600)
 	st.Level = report.Level(fs)
 	st.Motd = report.Motd(fs)
+	st.Reason = report.Reason(fs)
 	st.PublicIP = snap.Host.PublicIP
 	st.SSHPort = snap.Host.SSHPort
 	if snap.NetBird.IP != "" {

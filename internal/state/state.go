@@ -23,6 +23,7 @@ type State struct {
 	SSHPort      int        `json:"ssh_port"`
 	Level        string     `json:"level"`
 	Motd         string     `json:"motd"`
+	Reason       string     `json:"reason,omitempty"`
 	KeepPorts    []int      `json:"keep_ports,omitempty"`
 	SSHUsers     []string   `json:"ssh_users,omitempty"`
 	HasProtect   bool       `json:"has_protect"`

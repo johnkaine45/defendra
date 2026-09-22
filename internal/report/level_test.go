@@ -19,6 +19,18 @@ func TestLevelIgnoresWarn(t *testing.T) {
 	}
 }
 
+func TestReasonUsesPrimary(t *testing.T) {
+	fs := []check.Finding{
+		{ID: "NET-UNEXPECTED-PORT", Status: check.Fail, Severity: check.SevHigh, Plain: "Появился открытый порт 53."},
+	}
+	if Reason(fs) != "Появился открытый порт 53." {
+		t.Fatal(Reason(fs))
+	}
+	if Reason([]check.Finding{{ID: "SSH-PASSWORD", Status: check.Pass}}) != "" {
+		t.Fatal("green must have empty reason")
+	}
+}
+
 func TestLevelFailIsYellow(t *testing.T) {
 	fs := []check.Finding{
 		{ID: "SSH-PASSWORD", Status: check.Fail, Severity: check.SevHigh},
