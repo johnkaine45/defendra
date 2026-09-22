@@ -27,9 +27,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	case "", "menu":
 		st := state.Load()
 		if st.HasProtect {
-			u.Print(ui.MenuAfter(st.Level))
+			u.Print(ui.PaintFirstLine(ui.MenuAfter(st.Level), st.Level, u.Color))
 		} else {
-			u.Print(ui.MenuFresh())
+			u.Print(ui.PaintFirstLine(ui.MenuFresh(), "green", u.Color))
 		}
 		return 0
 	case "help":
@@ -206,7 +206,7 @@ func cmdStatus(ctx context.Context, hi host.Info, u *ui.IO, asJSON bool) int {
 	if !st.HasProtect {
 		user = "root"
 	}
-	u.Print(report.StatusText(snap, fs, snap.Host.PublicIP, user))
+	u.Print(ui.PaintFirstLine(report.StatusText(snap, fs, snap.Host.PublicIP, user), st.Level, u.Color))
 	if st.Level == "green" {
 		return 0
 	}

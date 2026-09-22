@@ -167,6 +167,11 @@ Enter, если спросит перезаписать — напишите n (
 		return 0
 	}
 
+	keep := plannedKeep(st, snap, allowPanel)
+	if alreadyQuiet(st, snap, keep) {
+		return finishQuiet(ctx, hi, u, st, snap, keep, opt.User)
+	}
+
 	lk, err := lock()
 	if err != nil {
 		u.Println(err.Error())
@@ -201,7 +206,11 @@ Enter, если спросит перезаписать — напишите n (
 	}
 	sudoPW = pw
 
-	u.Progress(2, total, "Ставлю защиту от подбора пароля…")
+	if st.HasProtect {
+		u.Progress(2, total, "Проверяю защиту от подбора пароля…")
+	} else {
+		u.Progress(2, total, "Ставлю защиту от подбора пароля…")
+	}
 	if !(snap.Packages.UFW && snap.Packages.Fail2ban && snap.Packages.Unattended) {
 		if err := aptInstall(ctx); err != nil {
 			u.Println("Не получилось поставить пакеты. Сеть или репозиторий Ubuntu. Попробуйте через 5 минут: sudo defendra protect")
@@ -209,29 +218,26 @@ Enter, если спросит перезаписать — напишите n (
 		}
 	}
 
-	u.Progress(3, total, "Включаю фильтр входящих подключений…")
-	keep := check.MergePorts(st.KeepPorts, check.ProjectPorts(snap))
-	if listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
-		keep = check.MergePorts(keep, []int{80, 443})
-	}
-	if allowPanel != 0 {
-		keep = check.MergePorts(keep, []int{allowPanel})
+	if st.HasProtect {
+		u.Progress(3, total, "Проверяю фильтр входящих подключений…")
+	} else {
+		u.Progress(3, total, "Включаю фильтр входящих подключений…")
 	}
 	if err := setupUFW(ctx, snap.Host.SSHPort, snap, allowPanel, keep); err != nil {
 		u.Printf("Не получилось включить фильтр: %v\nSSH не закрываю.\n", err)
 		return 2
 	}
 
-	u.Progress(4, total, "Включаю защиту от подбора пароля…")
+	u.Progress(4, total, "Проверяю защиту от подбора пароля…")
 	_ = setupFail2ban(ctx, hi.SSHClient)
 
-	u.Progress(5, total, "Включаю автообновления безопасности…")
+	u.Progress(5, total, "Проверяю автообновления безопасности…")
 	_ = setupUnattended()
 
-	u.Progress(6, total, "Прячу базы от интернета…")
+	u.Progress(6, total, "Проверяю, не торчат ли базы…")
 	_ = hideDatabases(ctx, snap)
 
-	u.Progress(7, total, "Включаю защиту от мелкого флуда…")
+	u.Progress(7, total, "Проверяю защиту от мелкого флуда…")
 	_ = setupSysctl(ctx)
 
 	locked := false
@@ -340,8 +346,8 @@ func printPasswordBox(u *ui.IO, pw string) {
 	if pw == "" {
 		return
 	}
-	u.Println("┌─ пароль для sudo, один раз ─────────────┐")
-	u.Printf("│  %s\n", pw)
+	u.Println(u.Paint(ui.Bold, "┌─ пароль для sudo, один раз ─────────────┐"))
+	u.Printf("%s\n", u.Paint(ui.Bold, "│  "+pw))
 	u.Println("│  запишите и храните как пароль от почты │")
 	u.Println("└─────────────────────────────────────────┘")
 	u.Println("через SSH этот пароль не спрашивают. Он нужен, когда на сервере пишете sudo.")
@@ -894,4 +900,63 @@ func joinPorts(ports []int) string {
 		ss[i] = strconv.Itoa(p)
 	}
 	return strings.Join(ss, ", ")
+}
+
+func plannedKeep(st state.State, snap facts.Snapshot, panel int) []int {
+	keep := check.MergePorts(st.KeepPorts, check.ProjectPorts(snap))
+	if listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
+		keep = check.MergePorts(keep, []int{80, 443})
+	}
+	if panel != 0 {
+		keep = check.MergePorts(keep, []int{panel})
+	}
+	return keep
+}
+
+func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
+	if !st.HasProtect || !st.SSHLocked {
+		return false
+	}
+	if !snap.Firewall.Active || !snap.Fail2ban.Active || !snap.Packages.UnattendedEnabled {
+		return false
+	}
+	if strings.EqualFold(snap.SSH.PasswordAuth, "yes") || strings.EqualFold(snap.SSH.PermitRootLogin, "yes") {
+		return false
+	}
+	return samePorts(st.KeepPorts, keep)
+}
+
+func samePorts(a, b []int) bool {
+	a = check.MergePorts(a)
+	b = check.MergePorts(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func finishQuiet(_ context.Context, _ host.Info, u *ui.IO, st state.State, snap facts.Snapshot, keep []int, user string) int {
+	_ = hardenPerms()
+	st.KeepPorts = keep
+	st.PublicIP = snap.Host.PublicIP
+	st.SSHPort = snap.Host.SSHPort
+	st.SSHLocked = true
+	st.HasProtect = true
+	if listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
+		st.SiteAllowed = true
+	}
+	fs := check.Run(snap, st.SiteAllowed, true, st.KeepPorts)
+	st.Level = report.Level(fs)
+	st.Motd = report.Motd(fs)
+	_ = state.Save(st)
+	saveScan(snap, fs)
+	audit.Event("protect", "ok", "unchanged")
+	u.Println("Проверил. Менять нечего.")
+	u.Print(ui.PaintFirstLine(report.StatusText(snap, fs, snap.Host.PublicIP, user), st.Level, u.Color))
+	return 0
 }

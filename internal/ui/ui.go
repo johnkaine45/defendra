@@ -45,7 +45,8 @@ func (u *IO) ErrPrint(format string, a ...any) {
 }
 
 func (u *IO) Progress(step, total int, msg string) {
-	fmt.Fprintf(u.Err, "Defendra • шаг %d из %d   %s\n", step, total, msg)
+	line := fmt.Sprintf("Defendra • шаг %d из %d   %s", step, total, msg)
+	fmt.Fprintln(u.Err, u.Paint(Dim, line))
 }
 
 func (u *IO) Confirm(question string) (bool, error) {

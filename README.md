@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" width="96" height="96" alt="Defendra">
+  <img src="docs/logo.svg" width="88" height="88" alt="Defendra">
 </p>
 
 <h1 align="center">Defendra</h1>
@@ -10,11 +10,15 @@
 </p>
 
 <p align="center">
-  <img alt="Версия" src="https://img.shields.io/badge/version-0.1.9-10b981">
+  <img alt="Релиз" src="https://img.shields.io/github/v/release/johnkaine45/defendra?color=10b981">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white">
   <img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-22.04%20%2F%2024.04-E95420?logo=ubuntu&logoColor=white">
   <img alt="Лицензия" src="https://img.shields.io/badge/license-MIT-64748b">
   <img alt="CI" src="https://github.com/johnkaine45/defendra/actions/workflows/ci.yml/badge.svg">
+</p>
+
+<p align="center">
+  <img src="docs/og.png" width="720" alt="Defendra — защита Ubuntu VDS одной командой">
 </p>
 
 ```text
@@ -87,21 +91,11 @@ sudo defendra allow-site
 
 ## Как выглядит статус
 
-```text
-Defendra • порядок
+<p align="center">
+  <img src="docs/status.svg" width="720" alt="sudo defendra status — порядок">
+</p>
 
-  Вход           по ключу, пользователь admin
-  Фильтр         включён, снаружи: 22, 80, 443
-  Подбор пароля  сегодня отбито 2 попытки
-  Обновления     ставятся сами
-  Базы           из интернета не видны
-
-  DDoS канала    это не Defendra. В панели VDS включите защиту хостера.
-
-Как заходить:  ssh admin@203.0.113.10
-```
-
-Три слова вместо светофора: **порядок** / **не полностью** / **опасно**. Одна причина, одна команда.
+Три слова вместо светофора: **порядок** / **не полностью** / **опасно**. Одна причина, одна команда. Повторный `protect` на уже закрытом сервере пишет «проверил, менять нечего» и не гоняет девять шагов.
 
 ## Команды
 
