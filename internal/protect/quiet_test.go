@@ -78,6 +78,15 @@ func TestAlreadyQuietUDPGap(t *testing.T) {
 	}
 }
 
+func TestSkipQuestions(t *testing.T) {
+	if !skipQuestions(Options{DryRun: true}) || !skipQuestions(Options{Yes: true}) {
+		t.Fatal("dry-run and --yes must not ask")
+	}
+	if skipQuestions(Options{}) {
+		t.Fatal("interactive still asks")
+	}
+}
+
 func TestExitIfNotGreen(t *testing.T) {
 	if exitIfNotGreen("green") != 0 {
 		t.Fatal("green")

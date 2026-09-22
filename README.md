@@ -112,7 +112,7 @@ sudo defendra allow-site
 | `defendra help` | FAQ: не вхожу, забыли пароль, нет сайта |
 | `sudo defendra password` | Показать пароль sudo, если забыли |
 
-Для скриптов: `--yes`, `--dry-run`, `scan --format json`. В меню новичка их нет.
+Для скриптов: `--yes`, `--dry-run`, `scan --format json`. `--dry-run` ничего не спрашивает и не читает stdin. В меню новичка этих флагов нет.
 
 ## Принципы
 

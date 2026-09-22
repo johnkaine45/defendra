@@ -32,7 +32,7 @@ func Run(ctx context.Context, hi host.Info, opt Options) int {
 		u.Println("Такое имя пользователя не подойдёт. Обычно достаточно:\n\n  sudo defendra protect")
 		return 2
 	}
-	if opt.Yes {
+	if skipQuestions(opt) {
 		u.NoPrompt = true
 	}
 
@@ -42,7 +42,7 @@ func Run(ctx context.Context, hi host.Info, opt Options) int {
 	_ = check.Run(snap, st.SiteAllowed, st.HasProtect, st.KeepPorts)
 
 	key := opt.SSHKey
-	if !check.HasSudoKey(snap) && key == "" && !opt.Yes {
+	if !check.HasSudoKey(snap) && key == "" && !skipQuestions(opt) {
 		u.Println("Сейчас на сервер пускают по паролю. Так его взламывают за ночь.")
 		u.Println("Чтобы закрыть пароль, нужен ключ с ВАШЕГО компьютера.")
 		u.Println("")
@@ -102,7 +102,7 @@ Enter, если спросит перезаписать — напишите n (
 		} else {
 			u.Println("Настраиваю сервер…")
 		}
-	} else {
+	} else if !opt.DryRun {
 		ok, err := u.Confirm(`Настрою этот сервер так, чтобы с улицы не подбирали пароль
 и не лезли в базы.
 
@@ -124,7 +124,7 @@ Enter, если спросит перезаписать — напишите n (
 	allowPanel := 0
 	if len(snap.Panels) > 0 {
 		p := snap.Panels[0]
-		if opt.Yes {
+		if opt.Yes || opt.DryRun {
 			allowPanel = p.Port
 		} else {
 			yes, err := u.Confirm(fmt.Sprintf(`На сервере есть панель управления (заходите в неё через браузер),
@@ -932,7 +932,7 @@ func saveScan(snap facts.Snapshot, fs []check.Finding) {
 }
 
 func AllowSite(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
-	if yes {
+	if yes || dry {
 		u.NoPrompt = true
 	}
 	st := state.Load()
@@ -1122,6 +1122,10 @@ func exitIfNotGreen(level string) int {
 		return 0
 	}
 	return 1
+}
+
+func skipQuestions(opt Options) bool {
+	return opt.Yes || opt.DryRun
 }
 
 func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
