@@ -87,7 +87,7 @@ func TestCreatedByUsUndoWhitelist(t *testing.T) {
 			t.Fatalf("should own %s", p)
 		}
 	}
-	keep := []string{"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules", "/etc/redis/redis.conf"}
+	keep := []string{"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules", "/etc/ufw/ufw.conf", "/etc/redis/redis.conf"}
 	for _, p := range keep {
 		if CreatedByUs(p) {
 			t.Fatalf("must not delete %s on undo", p)

@@ -46,11 +46,8 @@ func sshConn() (string, int) {
 	if ip, port := parseSSHConnection(os.Getenv("SSH_CONNECTION")); ip != "" {
 		return ip, port
 	}
-	if s := os.Getenv("SSH_CLIENT"); s != "" {
-		parts := strings.Fields(s)
-		if len(parts) >= 1 && parts[0] != "" {
-			return parts[0], 22
-		}
+	if ip, port := parseSSHClient(os.Getenv("SSH_CLIENT")); ip != "" {
+		return ip, port
 	}
 	pid := os.Getppid()
 	for i := 0; i < 12 && pid > 1; i++ {
@@ -58,11 +55,8 @@ func sshConn() (string, int) {
 		if ip, port := parseSSHConnection(env["SSH_CONNECTION"]); ip != "" {
 			return ip, port
 		}
-		if s := env["SSH_CLIENT"]; s != "" {
-			parts := strings.Fields(s)
-			if len(parts) >= 1 && parts[0] != "" {
-				return parts[0], 22
-			}
+		if ip, port := parseSSHClient(env["SSH_CLIENT"]); ip != "" {
+			return ip, port
 		}
 		pid = procPPID(pid)
 	}
@@ -84,6 +78,20 @@ func parseSSHConnection(s string) (string, int) {
 	port, _ := strconv.Atoi(parts[3])
 	if port == 0 {
 		port = 22
+	}
+	return parts[0], port
+}
+
+func parseSSHClient(s string) (string, int) {
+	parts := strings.Fields(strings.TrimSpace(s))
+	if len(parts) == 0 || parts[0] == "" {
+		return "", 22
+	}
+	port := 22
+	if len(parts) >= 3 {
+		if n, err := strconv.Atoi(parts[2]); err == nil && n > 0 && n <= 65535 {
+			port = n
+		}
 	}
 	return parts[0], port
 }

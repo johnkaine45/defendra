@@ -40,7 +40,7 @@ type Options struct {
 }
 
 func lock() (*os.File, error) {
-	if err := os.MkdirAll(state.Dir, 0755); err != nil {
+	if err := os.MkdirAll(state.Dir, 0750); err != nil {
 		return nil, err
 	}
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
@@ -79,7 +79,7 @@ func armSSHWatchdog(ctx context.Context, port int) {
 	if port <= 0 || port > 65535 {
 		port = 22
 	}
-	if err := os.MkdirAll(state.Dir, 0755); err != nil {
+	if err := os.MkdirAll(state.Dir, 0750); err != nil {
 		return
 	}
 	body := fmt.Sprintf(`#!/bin/bash
@@ -212,6 +212,38 @@ func reloadSSH(ctx context.Context) error {
 	return err
 }
 
+func applyFirewallRestore(ctx context.Context) {
+	if !oscmd.LookPath("ufw") {
+		return
+	}
+	b, err := os.ReadFile("/etc/ufw/ufw.conf")
+	if err != nil {
+		return
+	}
+	if ufwConfEnabled(string(b)) {
+		_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "reload")
+		ensureSSHListener(ctx)
+		return
+	}
+	_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "--force", "disable")
+}
+
+func ufwConfEnabled(conf string) bool {
+	for _, line := range strings.Split(conf, "\n") {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(trim, "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(k), "ENABLED") {
+			continue
+		}
+		v = strings.Trim(strings.TrimSpace(v), `"'`)
+		return strings.EqualFold(v, "yes")
+	}
+	return false
+}
+
 func ensureUser(ctx context.Context, name, keyLine string, uiio *ui.IO) (string, error) {
 	home := "/home/" + name
 	existed := userExists(name)
@@ -280,7 +312,7 @@ func ensureUser(ctx context.Context, name, keyLine string, uiio *ui.IO) (string,
 		if err := chpasswd(name, pw); err != nil {
 			return "", err
 		}
-		_ = os.MkdirAll(state.Dir, 0700)
+		_ = os.MkdirAll(state.Dir, 0750)
 		_ = os.WriteFile(firstLogin, []byte(pw+"\n"), 0600)
 	}
 

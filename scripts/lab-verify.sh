@@ -142,6 +142,7 @@ echo "os_id=$ID os_ver=$VERSION_ID"
 defendra protect --yes >/tmp/df-prot.txt 2>/tmp/df-prot.err
 echo "protect_yes=$?"
 grep -q 'Проверил' /tmp/df-prot.txt && echo MARK_QUIET=1
+grep -q 'Готово' /tmp/df-prot.txt && echo MARK_APPLY=1
 echo "---PROTECT---"
 cat /tmp/df-prot.txt /tmp/df-prot.err
 
@@ -211,10 +212,10 @@ echo "timer=$(systemctl is-enabled defendra-watch.timer 2>/dev/null)"
 echo "ufw=$(ufw status | head -1)"
 
 echo "---SSHD-T---"
-sshd -T 2>/dev/null | awk 'tolower($1) ~ /^(permitrootlogin|passwordauthentication|allowusers|pubkeyauthentication)$/'
+sshd -T 2>/dev/null | awk 'tolower($1) ~ /^(permitrootlogin|passwordauthentication|allowusers|pubkeyauthentication|maxauthtries)$/'
 
 echo "---PERMS---"
-stat -c '%a %n' /var/lib/defendra/summary.json /var/lib/defendra/state.json /var/lib/defendra/first-login.txt /etc/ssh/sshd_config.d/00-defendra.conf /etc/fail2ban/jail.d/defendra.conf 2>/dev/null
+stat -c '%a %n' /var/lib/defendra /var/lib/defendra/summary.json /var/lib/defendra/state.json /var/lib/defendra/first-login.txt /etc/ssh/sshd_config.d/00-defendra.conf /etc/fail2ban/jail.d/defendra.conf 2>/dev/null
 
 echo "---USERS---"
 awk -F: '$3>=1000 && $3<65534 {print $1,$3,$7}' /etc/passwd
@@ -250,6 +251,8 @@ PY
 
 echo "---BACKUP---"
 test -f /var/lib/defendra/backups/last/MANIFEST && echo "manifest=yes" || echo "manifest=no"
+grep -q '/etc/ufw/ufw.conf' /var/lib/defendra/backups/last/MANIFEST 2>/dev/null && echo "backup_ufw_conf=yes" || echo "backup_ufw_conf=no"
+grep -q 'port =' /etc/fail2ban/jail.d/defendra.conf && echo "f2b_port=yes" || echo "f2b_port=no"
 # unexpected port while listening
 python3 - <<'PY' &
 import socket, time
@@ -282,7 +285,13 @@ if echo "$sudo_out" | grep -Eq 'os_ver=(22.04|24.04|26.04)'; then
 else
   bad "unsupported or missing os"
 fi
-echo "$sudo_out" | grep -q 'MARK_QUIET=1' && pass "quiet protect text" || bad "quiet protect text"
+if echo "$sudo_out" | grep -q 'MARK_QUIET=1'; then
+  pass "quiet protect text"
+elif echo "$sudo_out" | grep -q 'MARK_APPLY=1'; then
+  pass "protect applied lock"
+else
+  bad "quiet protect text"
+fi
 echo "$sudo_out" | grep -q 'protect_dry=0' && pass "protect --dry-run 0" || bad "dry-run"
 echo "$sudo_out" | grep -q 'status_ec=0' && pass "status 0" || bad "status"
 echo "$sudo_out" | grep -q 'Defendra • порядок' && pass "status green" || bad "status green"
@@ -297,6 +306,10 @@ echo "$sudo_out" | grep -q 'protect_notty=2' && pass "protect no-tty → 2" || b
 echo "$sudo_out" | grep -q 'passwordauthentication no' && pass "sshd password no" || bad "sshd password"
 echo "$sudo_out" | grep -q 'permitrootlogin no' && pass "sshd root no" || bad "sshd root"
 echo "$sudo_out" | grep -q 'allowusers admin' && pass "sshd AllowUsers admin" || bad "sshd AllowUsers"
+echo "$sudo_out" | grep -q 'maxauthtries 3' && pass "sshd MaxAuthTries 3" || bad "sshd MaxAuthTries"
+echo "$sudo_out" | grep -q '750 /var/lib/defendra' && pass "state dir 0750" || bad "state dir perms"
+echo "$sudo_out" | grep -q 'backup_ufw_conf=yes' && pass "backup has ufw.conf" || bad "backup ufw.conf"
+echo "$sudo_out" | grep -q 'f2b_port=yes' && pass "fail2ban port set" || bad "fail2ban port"
 echo "$sudo_out" | grep -q '640 /var/lib/defendra/summary.json' && pass "summary 0640" || bad "summary perms"
 echo "$sudo_out" | grep -q '600 /var/lib/defendra/first-login.txt' && pass "first-login 0600" || bad "first-login perms"
 echo "$sudo_out" | grep -q '640 /etc/fail2ban/jail.d/defendra.conf' && pass "jail 0640" || bad "jail perms"

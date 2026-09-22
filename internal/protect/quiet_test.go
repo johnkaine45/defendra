@@ -23,8 +23,26 @@ func TestAlreadyQuiet(t *testing.T) {
 		t.Fatal("expected quiet")
 	}
 	st.SSHLocked = false
-	if alreadyQuiet(st, snap, keep) {
+	if alreadyQuiet(st, snap, []int{80, 443}) {
 		t.Fatal("unlocked should not be quiet")
+	}
+}
+
+func TestAlreadyQuietStaleMaxAuthTries(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", MaxAuthTries: "6"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+	}
+	if alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("stale MaxAuthTries must re-apply lock")
+	}
+	snap.SSH.MaxAuthTries = "3"
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("current drop-in should stay quiet")
 	}
 }
 

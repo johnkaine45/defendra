@@ -66,3 +66,38 @@ ListenAddress 0.0.0.0
 		t.Fatalf("listen lost: %s", out)
 	}
 }
+
+func TestCommentSSHLockKeysAllowGroupsAndAuthMethods(t *testing.T) {
+	in := `Match User admin
+    AuthenticationMethods password
+AllowGroups ssh-users
+AuthorizedKeysFile /dev/null
+ListenAddress 0.0.0.0
+`
+	out, changed := commentSSHLockKeys(in)
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(out, "AuthenticationMethods password") || !strings.Contains(out, "# defendra:") {
+		t.Fatalf("authmethods: %s", out)
+	}
+	if !strings.Contains(out, "# defendra: AllowGroups ssh-users") {
+		t.Fatalf("allowgroups: %s", out)
+	}
+	if !strings.Contains(out, "# defendra: AuthorizedKeysFile /dev/null") {
+		t.Fatalf("authorizedkeys: %s", out)
+	}
+	if !strings.Contains(out, "Match User admin") || !strings.Contains(out, "ListenAddress 0.0.0.0") {
+		t.Fatalf("context lost: %s", out)
+	}
+}
+
+func TestSSHDropinBodyMaxAuthTries(t *testing.T) {
+	body := sshDropinBody([]string{"admin"})
+	if !strings.Contains(body, "MaxAuthTries 3") {
+		t.Fatal(body)
+	}
+	if !strings.Contains(body, "AllowUsers admin") {
+		t.Fatal(body)
+	}
+}

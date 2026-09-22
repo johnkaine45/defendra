@@ -72,7 +72,8 @@ fi
 install -m 0755 "$SRC" /usr/bin/defendra
 install -m 0755 "$SRC" /usr/local/bin/defendra
 rm -f "$SRC" /tmp/defendra
-chmod 0755 /var/lib/defendra 2>/dev/null || true
+chmod 0750 /var/lib/defendra 2>/dev/null || true
+chgrp admin /var/lib/defendra 2>/dev/null || true
 chmod 0640 /var/lib/defendra/summary.json 2>/dev/null || true
 chmod 0644 /var/lib/defendra/motd.txt 2>/dev/null || true
 defendra version

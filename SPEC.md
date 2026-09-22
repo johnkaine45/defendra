@@ -68,7 +68,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.17_amd64.deb`. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.18_amd64.deb`. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
 
 ## 4. Как это выглядит для пользователя
 
@@ -349,8 +349,9 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
 
 `sudo defendra undo` откатывает **последний успешный protect** целиком:
 
-- возвращает файлы из snapshot (`sshd` drop-in, sysctl, ufw rules, fail2ban jail, sudoers.d если создавали);
-- удаляет файлы, которые Defendra сама создала и которых не было до protect (`00-defendra.conf` и другие свои drop-in). Живые `sshd_config` и правила фильтра не удаляет, даже если копия в снимке пропала;
+- возвращает файлы из snapshot (`sshd` drop-in, sysctl, `ufw` rules и `ufw.conf`, fail2ban jail, sudoers.d если создавали);
+- после отката reload SSH; фильтр: если в снимке он был выключен — выключаем, иначе `ufw reload`, чтобы живые правила совпали с файлами;
+- удаляет файлы, которые Defendra сама создала и которых не было до protect (`00-defendra.conf` и другие свои drop-in). Живые `sshd_config`, `ufw.conf` и правила фильтра не удаляет, даже если копия в снимке пропала;
 - не удаляет пользователя `admin` (удаление admin может закрыть единственный вход);
 - не обещает откат `apt install`;
 - после отката снова `sshd -t` и reload.
@@ -384,7 +385,7 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
 /etc/systemd/system/defendra-watch.timer
 ```
 
-Владелец root, каталоги `0700`, секреты `0600`.
+Владелец root. Каталог `/var/lib/defendra` — `0750` и группа админа, чтобы `defendra` / `how-to-login` без sudo видели статус. Секреты `0600`, `state.json` `0640`. Чужие в каталог не заходят.
 
 Audit log: время, команда, шаг, ok/fail, путь backup. Без ключей и паролей.
 

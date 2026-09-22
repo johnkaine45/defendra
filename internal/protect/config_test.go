@@ -125,3 +125,40 @@ func TestPlannedKeepHonorsNoPanel(t *testing.T) {
 		t.Fatalf("allowed panel missing %v", yes)
 	}
 }
+
+func TestPatchListenAddressesZero(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "postgresql.conf")
+	src := "listen_addresses = '0.0.0.0'\nport = 5432\n"
+	if err := os.WriteFile(p, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if !patchListenAddressesFile(p) {
+		t.Fatal("expected patch")
+	}
+	b, _ := os.ReadFile(p)
+	if !strings.Contains(string(b), "listen_addresses = 'localhost'") {
+		t.Fatal(string(b))
+	}
+	if strings.Contains(string(b), "0.0.0.0") {
+		t.Fatal(string(b))
+	}
+	if patchListenAddressesFile(p) {
+		t.Fatal("idempotent")
+	}
+}
+
+func TestUFWConfEnabled(t *testing.T) {
+	if !ufwConfEnabled("ENABLED=yes\nLOGLEVEL=low\n") {
+		t.Fatal("yes")
+	}
+	if ufwConfEnabled("ENABLED=no\n") {
+		t.Fatal("no")
+	}
+	if ufwConfEnabled("# ENABLED=yes\nENABLED=no\n") {
+		t.Fatal("comment")
+	}
+	if !ufwConfEnabled(`ENABLED="yes"`) {
+		t.Fatal("quoted")
+	}
+}

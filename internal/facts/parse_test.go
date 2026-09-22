@@ -140,3 +140,15 @@ To                         Action      From
 		t.Fatalf("%+v", fw)
 	}
 }
+
+func TestPickPublicIP(t *testing.T) {
+	if got := pickPublicIP([]string{"127.0.0.1", "195.58.153.30", "2001:db8::1"}); got != "195.58.153.30" {
+		t.Fatalf("v4 first: %s", got)
+	}
+	if got := pickPublicIP([]string{"127.0.0.1", "fe80::1", "2001:db8::1"}); got != "2001:db8::1" {
+		t.Fatalf("v6 only: %s", got)
+	}
+	if got := pickPublicIP([]string{"127.0.0.1", "fe80::1"}); got != "" {
+		t.Fatalf("none: %s", got)
+	}
+}

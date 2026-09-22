@@ -82,7 +82,7 @@ func loadJSON(path string) State {
 }
 
 func Save(s State) error {
-	if err := os.MkdirAll(Dir, 0755); err != nil {
+	if err := os.MkdirAll(Dir, 0750); err != nil {
 		return err
 	}
 	_ = os.MkdirAll(ScansDir(), 0700)
@@ -101,13 +101,16 @@ func Save(s State) error {
 	if s.User != "" {
 		if u, err := user.Lookup(s.User); err == nil {
 			gid, _ := strconv.Atoi(u.Gid)
+			_ = os.Chown(Dir, 0, gid)
+			_ = os.Chmod(Dir, 0750)
 			_ = os.Chown(Path(), 0, gid)
 			_ = os.Chmod(Path(), 0640)
 			_ = os.Chown(SummaryPath(), 0, gid)
 			_ = os.Chmod(SummaryPath(), 0640)
 		}
+	} else {
+		_ = os.Chmod(Dir, 0750)
 	}
-	_ = os.Chmod(Dir, 0755)
 	_ = pruneFiles(ScansDir(), 15)
 	return nil
 }

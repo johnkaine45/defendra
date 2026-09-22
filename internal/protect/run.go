@@ -190,7 +190,7 @@ Enter, если спросит перезаписать — напишите n (
 		sshdDropin, sshdDropinLegacy, sysctlDropin, fail2banJail, sudoersFile, motdFile,
 		autoUpgrades, "/etc/apt/apt.conf.d/51defendra-unattended",
 		watchUnit, watchTimer,
-		"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules",
+		"/etc/ssh/sshd_config", "/etc/ufw/ufw.conf", "/etc/ufw/user.rules", "/etc/ufw/user6.rules",
 		"/etc/redis/redis.conf", "/etc/mysql/mysql.conf.d/mysqld.cnf",
 		"/etc/mongod.conf", "/etc/elasticsearch/elasticsearch.yml",
 	}
@@ -216,6 +216,10 @@ Enter, если спросит перезаписать — напишите n (
 		return 2
 	}
 	sudoPW = pw
+	if sudoPW == "" && !st.HasProtect {
+		u.Println("Пользователь " + opt.User + " уже был, новый пароль не задавал.")
+		u.Println("Если не помните пароль sudo — консоль хостера и: defendra password")
+	}
 
 	if st.HasProtect {
 		u.Progress(2, total, "Проверяю защиту от подбора пароля…")
@@ -501,14 +505,18 @@ func setupFail2ban(ctx context.Context, clientIP string, sshPort int) error {
 		}
 		ignore += " " + ip
 	}
+	if sshPort <= 0 || sshPort > 65535 {
+		sshPort = 22
+	}
 	body := fmt.Sprintf(`[sshd]
 enabled = true
 backend = systemd
+port = %d
 maxretry = 5
 findtime = 10m
 bantime = 1h
 ignoreip = %s
-`, ignore)
+`, sshPort, ignore)
 	changed, err := writeIfChanged(fail2banJail, body, 0640)
 	if err != nil {
 		return err
@@ -638,8 +646,7 @@ func hideDatabases(ctx context.Context, snap facts.Snapshot, u *ui.IO, yes bool)
 			return patchListenAddresses()
 		}},
 		3306: {"MySQL", "mysql", "sudo systemctl restart mysql", func() bool {
-			ok, _ := setConfigLine("/etc/mysql/mysql.conf.d/mysqld.cnf", "bind-address", "bind-address = 127.0.0.1")
-			return ok
+			return patchBindAddress()
 		}},
 		27017: {"MongoDB", "mongod", "sudo systemctl restart mongod", func() bool {
 			ok, _ := setConfigLine("/etc/mongod.conf", "bindIp", "  bindIp: 127.0.0.1")
@@ -723,25 +730,59 @@ func patchListenAddresses() bool {
 	changed := false
 	matches, _ := filepath.Glob("/etc/postgresql/*/main/postgresql.conf")
 	for _, f := range matches {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-		s := string(b)
-		n := s
-		for _, old := range []string{
-			"listen_addresses = '*'",
-			"listen_addresses='*'",
-			`listen_addresses = "*"`,
-			`listen_addresses="*"`,
-		} {
-			n = strings.ReplaceAll(n, old, "listen_addresses = 'localhost'")
-		}
-		if n == s {
-			continue
-		}
-		if err := os.WriteFile(f, []byte(n), 0644); err == nil {
+		if patchListenAddressesFile(f) {
 			changed = true
+		}
+	}
+	return changed
+}
+
+func patchListenAddressesFile(path string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(string(b), "\n")
+	changed := false
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") {
+			continue
+		}
+		key := trim
+		if j := strings.IndexAny(key, " \t="); j >= 0 {
+			key = key[:j]
+		}
+		if !strings.EqualFold(key, "listen_addresses") {
+			continue
+		}
+		low := strings.ToLower(trim)
+		if strings.Contains(low, "localhost") || strings.Contains(low, "127.0.0.1") {
+			continue
+		}
+		if lines[i] != "listen_addresses = 'localhost'" {
+			lines[i] = "listen_addresses = 'localhost'"
+			changed = true
+		}
+	}
+	if !changed {
+		return false
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644) == nil
+}
+
+func patchBindAddress() bool {
+	changed := false
+	for _, g := range []string{
+		"/etc/mysql/mysql.conf.d/*.cnf",
+		"/etc/mysql/mariadb.conf.d/*.cnf",
+	} {
+		matches, _ := filepath.Glob(g)
+		for _, f := range matches {
+			ok, _ := setConfigLine(f, "bind-address", "bind-address = 127.0.0.1")
+			if ok {
+				changed = true
+			}
 		}
 	}
 	return changed
@@ -797,21 +838,9 @@ func lockSSH(ctx context.Context, user string, allow []string) error {
 	if len(allow) == 0 {
 		allow = []string{user}
 	}
-	body := fmt.Sprintf(`PermitRootLogin no
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PubkeyAuthentication yes
-PermitEmptyPasswords no
-X11Forwarding no
-UseDNS no
-GSSAPIAuthentication no
-ClientAliveInterval 60
-ClientAliveCountMax 3
-MaxAuthTries 3
-AllowUsers %s
-`, strings.Join(allow, " "))
+	body := sshDropinBody(allow)
 	if b, err := os.ReadFile(sshdDropin); err == nil && string(b) == body {
-		if sshEffectiveLocked(ctx) && allowUsersApplied(effectiveAllowUsers(ctx), allow) {
+		if sshLooksLocked(ctx, user, allow) {
 			return nil
 		}
 	}
@@ -859,17 +888,55 @@ AllowUsers %s
 		return fmt.Errorf("не смог проверить настройку входа, пароль не закрываю")
 	}
 	eff := facts.ParseSSHDT(out)
-	if strings.EqualFold(eff.PasswordAuth, "yes") || strings.EqualFold(eff.PermitRootLogin, "yes") {
+	if !factLooksLocked(eff) || !allowUsersApplied(eff.AllowUsers, allow) {
 		undo()
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("настройка SSH не применилась, вход не меняю")
 	}
-	if !allowUsersApplied(eff.AllowUsers, allow) {
-		undo()
-		_ = reloadSSH(ctx)
-		return fmt.Errorf("список пользователей входа не применился, вход не меняю")
+	if match, err := effectiveSSHMatch(ctx, user); err == nil {
+		if !factLooksLocked(match) || !allowUsersApplied(match.AllowUsers, allow) {
+			undo()
+			_ = reloadSSH(ctx)
+			return fmt.Errorf("настройка SSH для пользователя не применилась, вход не меняю")
+		}
 	}
 	return nil
+}
+
+func sshDropinBody(allow []string) string {
+	if len(allow) == 0 {
+		allow = []string{"admin"}
+	}
+	return fmt.Sprintf(`PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+PermitEmptyPasswords no
+X11Forwarding no
+UseDNS no
+GSSAPIAuthentication no
+ClientAliveInterval 60
+ClientAliveCountMax 3
+MaxAuthTries 3
+AllowUsers %s
+`, strings.Join(allow, " "))
+}
+
+func factLooksLocked(eff facts.SSHFact) bool {
+	return !strings.EqualFold(eff.PasswordAuth, "yes") && !strings.EqualFold(eff.PermitRootLogin, "yes")
+}
+
+func sshLooksLocked(ctx context.Context, user string, allow []string) bool {
+	eff, err := effectiveSSH(ctx)
+	if err != nil || !factLooksLocked(eff) || !allowUsersApplied(eff.AllowUsers, allow) {
+		return false
+	}
+	if match, err := effectiveSSHMatch(ctx, user); err == nil {
+		if !factLooksLocked(match) || !allowUsersApplied(match.AllowUsers, allow) {
+			return false
+		}
+	}
+	return true
 }
 
 func sshEffectiveLocked(ctx context.Context) bool {
@@ -877,13 +944,28 @@ func sshEffectiveLocked(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	return !strings.EqualFold(eff.PasswordAuth, "yes") && !strings.EqualFold(eff.PermitRootLogin, "yes")
+	return factLooksLocked(eff)
 }
 
 func effectiveSSH(ctx context.Context) (facts.SSHFact, error) {
 	out, _, err := oscmd.Run(ctx, 10*time.Second, "sshd", "-T")
 	if err != nil {
 		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T")
+	}
+	if err != nil {
+		return facts.SSHFact{}, err
+	}
+	return facts.ParseSSHDT(out), nil
+}
+
+func effectiveSSHMatch(ctx context.Context, user string) (facts.SSHFact, error) {
+	if !validUnixUser(user) {
+		return facts.SSHFact{}, fmt.Errorf("bad user")
+	}
+	spec := "user=" + user + ",host=127.0.0.1,addr=127.0.0.1"
+	out, _, err := oscmd.Run(ctx, 10*time.Second, "sshd", "-T", "-C", spec)
+	if err != nil {
+		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T", "-C", spec)
 	}
 	if err != nil {
 		return facts.SSHFact{}, err
@@ -1037,6 +1119,8 @@ func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 		return 2
 	}
 	_ = reloadSSH(ctx)
+	applyFirewallRestore(ctx)
+	_, _, _ = oscmd.Run(ctx, 15*time.Second, "systemctl", "reload", "fail2ban")
 	_ = restored
 	st := state.Load()
 	st.SSHLocked = sshEffectiveLocked(ctx)
@@ -1172,6 +1256,9 @@ func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
 		return false
 	}
 	if strings.EqualFold(snap.SSH.PasswordAuth, "yes") || strings.EqualFold(snap.SSH.PermitRootLogin, "yes") {
+		return false
+	}
+	if snap.SSH.MaxAuthTries != "" && snap.SSH.MaxAuthTries != "3" {
 		return false
 	}
 	if hostDBExposed(snap) {

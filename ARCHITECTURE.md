@@ -158,7 +158,7 @@ print how-to-login + ритуал второго окна, если SSH закр
 
 | Что | Как |
 |---|---|
-| SSH | только `/etc/ssh/sshd_config.d/00-defendra.conf` (first-wins OpenSSH). Не переписывать основной файл хостера |
+| SSH | drop-in `/etc/ssh/sshd_config.d/00-defendra.conf` (first-wins OpenSSH). Чужие drop-in и ключи lock в `/etc/ssh/sshd_config` комментируем, не затираем файл целиком; undo возвращает снимок |
 | sysctl | `/etc/sysctl.d/99-defendra.conf` |
 | fail2ban | `/etc/fail2ban/jail.d/defendra.conf` |
 | UFW | команды `ufw`, не ручные iptables |
@@ -166,7 +166,7 @@ print how-to-login + ритуал второго окна, если SSH закр
 | MOTD | `/etc/update-motd.d/99-defendra` |
 | watch | unit-файлы в `/etc/systemd/system/` |
 
-Запрещённые пути для записи: `/etc/ssh/sshd_config` (кроме чтения), `/etc/sudoers`, `/etc/shadow` напрямую, `/etc/passwd` через echo (только `useradd`/`usermod`).
+Запрещённые пути для перезаписи целиком: `/etc/sudoers`, `/etc/shadow` напрямую, `/etc/passwd` через echo (только `useradd`/`usermod`). `/etc/ssh/sshd_config` не затираем: только комментируем ключи lock, undo возвращает снимок.
 
 Запрещённые команды: `passwd -l root`, `usermod -L root`, `passwd -d root`. Root в консоли хостера должен остаться рабочим.
 

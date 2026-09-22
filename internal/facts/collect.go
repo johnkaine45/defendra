@@ -362,11 +362,27 @@ func firstPublicIP(ctx context.Context) string {
 	if err != nil {
 		return ""
 	}
-	for _, ip := range strings.Fields(out) {
-		if strings.HasPrefix(ip, "127.") || strings.Contains(ip, ":") {
+	return pickPublicIP(strings.Fields(out))
+}
+
+func pickPublicIP(ips []string) string {
+	var v6 string
+	for _, ip := range ips {
+		ip = strings.TrimSpace(ip)
+		if ip == "" || strings.HasPrefix(ip, "127.") {
+			continue
+		}
+		low := strings.ToLower(ip)
+		if strings.Contains(ip, ":") {
+			if strings.HasPrefix(low, "fe80:") || strings.HasPrefix(low, "::1") {
+				continue
+			}
+			if v6 == "" {
+				v6 = ip
+			}
 			continue
 		}
 		return ip
 	}
-	return ""
+	return v6
 }

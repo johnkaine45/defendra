@@ -27,3 +27,14 @@ func TestParseSSHConnection(t *testing.T) {
 		t.Fatalf("empty: %s", ip)
 	}
 }
+
+func TestParseSSHClientPort(t *testing.T) {
+	ip, port := parseSSHClient("203.0.113.10 53122 2222")
+	if ip != "203.0.113.10" || port != 2222 {
+		t.Fatalf("%s %d", ip, port)
+	}
+	ip, port = parseSSHClient("203.0.113.10")
+	if ip != "203.0.113.10" || port != 22 {
+		t.Fatalf("short %s %d", ip, port)
+	}
+}
