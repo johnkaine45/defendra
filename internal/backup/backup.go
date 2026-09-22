@@ -121,8 +121,12 @@ func RestoreLast() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	paths := splitLines(string(man))
 	var restored []string
-	for _, p := range splitLines(string(man)) {
+	for _, p := range paths {
+		if skipUFWRuleRestore(paths, p) {
+			continue
+		}
 		src := filepath.Join(LastDir(), filepath.Base(p)+"__"+encode(p))
 		if _, err := os.Stat(src); err != nil {
 			continue
@@ -168,6 +172,30 @@ func CreatedByUs(p string) bool {
 func HasLast() bool {
 	_, err := os.Stat(filepath.Join(LastDir(), "MANIFEST"))
 	return err == nil
+}
+
+func LastSkipsUFWRules() bool {
+	b, err := os.ReadFile(filepath.Join(LastDir(), "MANIFEST"))
+	if err != nil {
+		return false
+	}
+	return skipUFWRuleRestore(splitLines(string(b)), "/etc/ufw/user.rules")
+}
+
+func containsPath(paths []string, want string) bool {
+	for _, p := range paths {
+		if p == want {
+			return true
+		}
+	}
+	return false
+}
+
+func skipUFWRuleRestore(manifest []string, path string) bool {
+	if path != "/etc/ufw/user.rules" && path != "/etc/ufw/user6.rules" {
+		return false
+	}
+	return !containsPath(manifest, "/etc/ufw/ufw.conf")
 }
 
 func encode(p string) string {

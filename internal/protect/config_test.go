@@ -162,3 +162,35 @@ func TestUFWConfEnabled(t *testing.T) {
 		t.Fatal("quoted")
 	}
 }
+
+func TestReplaceConfigLineDoesNotAppend(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "50-client.cnf")
+	if err := os.WriteFile(p, []byte("[client]\nport = 3306\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := replaceConfigLine(p, "bind-address", "bind-address = 127.0.0.1")
+	if err != nil || ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	b, _ := os.ReadFile(p)
+	if strings.Contains(string(b), "bind-address") {
+		t.Fatal(string(b))
+	}
+}
+
+func TestSSHMatchAddr(t *testing.T) {
+	if sshMatchAddr("203.0.113.10") != "203.0.113.10" {
+		t.Fatal("v4")
+	}
+	if sshMatchAddr("[2001:db8::1]") != "2001:db8::1" {
+		t.Fatal("v6")
+	}
+	if sshMatchAddr("evil;rm") != "" || sshMatchAddr("*") != "" {
+		t.Fatal("reject")
+	}
+	specs := sshMatchSpecs("admin", "203.0.113.10")
+	if len(specs) != 2 {
+		t.Fatalf("%v", specs)
+	}
+}

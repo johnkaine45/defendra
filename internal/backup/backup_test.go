@@ -119,3 +119,17 @@ func TestRestoreDoesNotDeleteForeignAbsent(t *testing.T) {
 		t.Fatal("foreign file was deleted")
 	}
 }
+
+func TestSkipUFWRuleRestoreWithoutConf(t *testing.T) {
+	old := []string{"/etc/ufw/user.rules", "/etc/ssh/sshd_config"}
+	if !skipUFWRuleRestore(old, "/etc/ufw/user.rules") {
+		t.Fatal("old snapshot must keep live ufw rules")
+	}
+	if skipUFWRuleRestore(old, "/etc/ssh/sshd_config") {
+		t.Fatal("ssh still restores")
+	}
+	fresh := []string{"/etc/ufw/ufw.conf", "/etc/ufw/user.rules"}
+	if skipUFWRuleRestore(fresh, "/etc/ufw/user.rules") {
+		t.Fatal("new snapshot restores rules with ufw.conf")
+	}
+}

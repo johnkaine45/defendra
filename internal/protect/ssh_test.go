@@ -92,6 +92,23 @@ ListenAddress 0.0.0.0
 	}
 }
 
+func TestCommentSSHLockKeysForceCommand(t *testing.T) {
+	in := "Match User admin\n    ForceCommand /bin/false\n    ChrootDirectory /var/empty\nListenAddress 0.0.0.0\n"
+	out, changed := commentSSHLockKeys(in)
+	if !changed {
+		t.Fatal("expected change")
+	}
+	if !strings.Contains(out, "# defendra:") || !strings.Contains(out, "ForceCommand") {
+		t.Fatalf("force: %s", out)
+	}
+	if !strings.Contains(out, "ChrootDirectory") {
+		t.Fatalf("chroot: %s", out)
+	}
+	if !strings.Contains(out, "ListenAddress 0.0.0.0") {
+		t.Fatalf("listen lost: %s", out)
+	}
+}
+
 func TestSSHDropinBodyMaxAuthTries(t *testing.T) {
 	body := sshDropinBody([]string{"admin"})
 	if !strings.Contains(body, "MaxAuthTries 3") {

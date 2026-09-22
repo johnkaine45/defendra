@@ -217,8 +217,13 @@ Enter, если спросит перезаписать — напишите n (
 	}
 	sudoPW = pw
 	if sudoPW == "" && !st.HasProtect {
-		u.Println("Пользователь " + opt.User + " уже был, новый пароль не задавал.")
-		u.Println("Если не помните пароль sudo — консоль хостера и: defendra password")
+		if b, err := os.ReadFile(firstLogin); err == nil {
+			sudoPW = strings.TrimSpace(string(b))
+		}
+		if sudoPW == "" {
+			u.Println("Пользователь " + opt.User + " уже был, новый пароль не задавал.")
+			u.Println("Если не помните пароль sudo — консоль хостера и: defendra password")
+		}
 	}
 
 	if st.HasProtect {
@@ -268,12 +273,20 @@ Enter, если спросит перезаписать — напишите n (
 	u.Progress(8, total, "Проверяю, можно ли закрыть пароль SSH…")
 	snap2 := facts.Collect(ctx, hi)
 	sshUsers := sshAllowUsers(snap2, opt.User)
+	canLock := banOK && (check.UserHasKeys(snap2, opt.User) || key != "")
 	if skipped := passwordOnlyLogins(snap2, opt.User); len(skipped) > 0 {
 		u.Println("Пользователь " + strings.Join(skipped, ", ") + " входит только по паролю.")
 		u.Println("После закрытия пароля он не зайдёт по SSH. Добавьте ему ключ или заходите как " + opt.User + ".")
+		if canLock && !opt.Yes {
+			okLock, err := u.Confirm("Закрыть пароль SSH? " + strings.Join(skipped, ", ") + " больше не войдёт.")
+			if err != nil || !okLock {
+				canLock = false
+				u.Println("Пароль SSH не закрывал.")
+			}
+		}
 	}
-	if banOK && (check.UserHasKeys(snap2, opt.User) || key != "") {
-		if err := lockSSH(ctx, opt.User, sshUsers); err != nil {
+	if canLock {
+		if err := lockSSH(ctx, opt.User, sshUsers, hi.SSHClient); err != nil {
 			u.Printf("Не закрыл пароль SSH: %v\nТекущий вход должен работать.\n", err)
 		} else {
 			locked = true
@@ -726,6 +739,37 @@ func setConfigLine(path, key, replacement string) (bool, error) {
 	return true, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
 }
 
+func replaceConfigLine(path, key, replacement string) (bool, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(string(b), "\n")
+	found := false
+	changed := false
+	for i, line := range lines {
+		trim := strings.TrimSpace(line)
+		if trim == "" || strings.HasPrefix(trim, "#") {
+			continue
+		}
+		k := trim
+		if j := strings.IndexAny(k, " \t=:"); j >= 0 {
+			k = k[:j]
+		}
+		if strings.EqualFold(k, key) {
+			found = true
+			if lines[i] != replacement {
+				lines[i] = replacement
+				changed = true
+			}
+		}
+	}
+	if !found || !changed {
+		return false, nil
+	}
+	return true, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644)
+}
+
 func patchListenAddresses() bool {
 	changed := false
 	matches, _ := filepath.Glob("/etc/postgresql/*/main/postgresql.conf")
@@ -779,7 +823,7 @@ func patchBindAddress() bool {
 	} {
 		matches, _ := filepath.Glob(g)
 		for _, f := range matches {
-			ok, _ := setConfigLine(f, "bind-address", "bind-address = 127.0.0.1")
+			ok, _ := replaceConfigLine(f, "bind-address", "bind-address = 127.0.0.1")
 			if ok {
 				changed = true
 			}
@@ -823,7 +867,7 @@ func hardenPerms() error {
 	return nil
 }
 
-func lockSSH(ctx context.Context, user string, allow []string) error {
+func lockSSH(ctx context.Context, user string, allow []string, clientIP string) error {
 	ak := filepath.Join("/home", user, ".ssh", "authorized_keys")
 	b, err := os.ReadFile(ak)
 	if err != nil || !sshkey.HasAny(string(b)) {
@@ -840,7 +884,7 @@ func lockSSH(ctx context.Context, user string, allow []string) error {
 	}
 	body := sshDropinBody(allow)
 	if b, err := os.ReadFile(sshdDropin); err == nil && string(b) == body {
-		if sshLooksLocked(ctx, user, allow) {
+		if sshLooksLocked(ctx, user, allow, clientIP) {
 			return nil
 		}
 	}
@@ -893,12 +937,10 @@ func lockSSH(ctx context.Context, user string, allow []string) error {
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("настройка SSH не применилась, вход не меняю")
 	}
-	if match, err := effectiveSSHMatch(ctx, user); err == nil {
-		if !factLooksLocked(match) || !allowUsersApplied(match.AllowUsers, allow) {
-			undo()
-			_ = reloadSSH(ctx)
-			return fmt.Errorf("настройка SSH для пользователя не применилась, вход не меняю")
-		}
+	if !sshMatchLooksLocked(ctx, user, allow, clientIP) {
+		undo()
+		_ = reloadSSH(ctx)
+		return fmt.Errorf("настройка SSH для пользователя не применилась, вход не меняю")
 	}
 	return nil
 }
@@ -926,17 +968,58 @@ func factLooksLocked(eff facts.SSHFact) bool {
 	return !strings.EqualFold(eff.PasswordAuth, "yes") && !strings.EqualFold(eff.PermitRootLogin, "yes")
 }
 
-func sshLooksLocked(ctx context.Context, user string, allow []string) bool {
+func sshLooksLocked(ctx context.Context, user string, allow []string, clientIP string) bool {
 	eff, err := effectiveSSH(ctx)
 	if err != nil || !factLooksLocked(eff) || !allowUsersApplied(eff.AllowUsers, allow) {
 		return false
 	}
-	if match, err := effectiveSSHMatch(ctx, user); err == nil {
+	return sshMatchLooksLocked(ctx, user, allow, clientIP)
+}
+
+func sshMatchLooksLocked(ctx context.Context, user string, allow []string, clientIP string) bool {
+	for _, spec := range sshMatchSpecs(user, clientIP) {
+		match, err := effectiveSSHMatch(ctx, spec)
+		if err != nil {
+			continue
+		}
 		if !factLooksLocked(match) || !allowUsersApplied(match.AllowUsers, allow) {
 			return false
 		}
 	}
 	return true
+}
+
+func sshMatchSpecs(user, clientIP string) []string {
+	if !validUnixUser(user) {
+		return nil
+	}
+	seen := map[string]bool{}
+	var specs []string
+	add := func(addr string) {
+		addr = sshMatchAddr(addr)
+		if addr == "" || seen[addr] {
+			return
+		}
+		seen[addr] = true
+		specs = append(specs, "user="+user+",host="+addr+",addr="+addr)
+	}
+	add("127.0.0.1")
+	add(clientIP)
+	return specs
+}
+
+func sshMatchAddr(ip string) string {
+	ip = strings.TrimSpace(strings.Trim(ip, "[]"))
+	if ip == "" || ip == "*" || ip == "0.0.0.0" || ip == "::" {
+		return ""
+	}
+	for _, c := range ip {
+		ok := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == '.' || c == ':'
+		if !ok {
+			return ""
+		}
+	}
+	return ip
 }
 
 func sshEffectiveLocked(ctx context.Context) bool {
@@ -958,11 +1041,10 @@ func effectiveSSH(ctx context.Context) (facts.SSHFact, error) {
 	return facts.ParseSSHDT(out), nil
 }
 
-func effectiveSSHMatch(ctx context.Context, user string) (facts.SSHFact, error) {
-	if !validUnixUser(user) {
-		return facts.SSHFact{}, fmt.Errorf("bad user")
+func effectiveSSHMatch(ctx context.Context, spec string) (facts.SSHFact, error) {
+	if spec == "" || strings.ContainsAny(spec, " \t\n") {
+		return facts.SSHFact{}, fmt.Errorf("bad match")
 	}
-	spec := "user=" + user + ",host=127.0.0.1,addr=127.0.0.1"
 	out, _, err := oscmd.Run(ctx, 10*time.Second, "sshd", "-T", "-C", spec)
 	if err != nil {
 		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T", "-C", spec)
@@ -1119,7 +1201,11 @@ func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 		return 2
 	}
 	_ = reloadSSH(ctx)
-	applyFirewallRestore(ctx)
+	if backup.LastSkipsUFWRules() {
+		u.Println("Старый снимок фильтра неполный. Правила входа не откатывал, чтобы не закрыть SSH.")
+	} else {
+		applyFirewallRestore(ctx)
+	}
 	_, _, _ = oscmd.Run(ctx, 15*time.Second, "systemctl", "reload", "fail2ban")
 	_ = restored
 	st := state.Load()

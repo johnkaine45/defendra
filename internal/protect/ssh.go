@@ -19,6 +19,8 @@ var sshLockKeys = []string{
 	"AllowGroups",
 	"AuthenticationMethods",
 	"AuthorizedKeysFile",
+	"ForceCommand",
+	"ChrootDirectory",
 	"MaxAuthTries",
 	"X11Forwarding",
 	"UseDNS",
