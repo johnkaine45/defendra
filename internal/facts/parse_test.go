@@ -49,12 +49,28 @@ Default: deny (incoming), allow (outgoing)
 	}
 	n22 := 0
 	for _, a := range fw.Allows {
-		if a == "22" {
+		if a == "22" || a == "22/tcp" {
 			n22++
 		}
 	}
 	if n22 != 1 {
 		t.Fatalf("dup 22: %+v", fw.Allows)
+	}
+}
+
+func TestParseSSPublicUDP(t *testing.T) {
+	in := `UNCONN 0 0 127.0.0.54:53 0.0.0.0:* users:(("systemd-resolve",pid=1,fd=3))
+udp UNCONN 0 0 0.0.0.0:51820 0.0.0.0:* users:(("wg",pid=2,fd=4))
+LISTEN 0 4096 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=3,fd=5))`
+	ls := ParseSS(in)
+	if len(ls) != 2 {
+		t.Fatalf("%+v", ls)
+	}
+	if ls[0].Proto != "udp" || ls[0].Port != 51820 || !ls[0].Public() {
+		t.Fatalf("wg: %+v", ls[0])
+	}
+	if ls[1].Port != 22 {
+		t.Fatalf("ssh: %+v", ls[1])
 	}
 }
 

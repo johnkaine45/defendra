@@ -201,6 +201,15 @@ func IsDBPort(port int) bool {
 	return ok
 }
 
+func IsPanelPort(port int) bool {
+	switch port {
+	case 8888, 1500, 8083, 10000, 8443, 8090, 9090:
+		return true
+	default:
+		return false
+	}
+}
+
 func ProjectPorts(s facts.Snapshot) []int {
 	seen := map[int]bool{}
 	var out []int

@@ -75,3 +75,47 @@ func TestSnapshotSkipsMissingAndRestoresExisting(t *testing.T) {
 		t.Fatalf("got %q", b)
 	}
 }
+
+func TestCreatedByUsUndoWhitelist(t *testing.T) {
+	own := []string{
+		"/etc/ssh/sshd_config.d/00-defendra.conf",
+		"/etc/fail2ban/jail.d/defendra.conf",
+		"/etc/sudoers.d/defendra-admin",
+	}
+	for _, p := range own {
+		if !CreatedByUs(p) {
+			t.Fatalf("should own %s", p)
+		}
+	}
+	keep := []string{"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules", "/etc/redis/redis.conf"}
+	for _, p := range keep {
+		if CreatedByUs(p) {
+			t.Fatalf("must not delete %s on undo", p)
+		}
+	}
+}
+
+func TestRestoreDoesNotDeleteForeignAbsent(t *testing.T) {
+	rootDir = t.TempDir()
+	t.Cleanup(func() { rootDir = "/var/lib/defendra" })
+
+	live := filepath.Join(t.TempDir(), "sshd_config")
+	if err := os.WriteFile(live, []byte("keep\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(LastDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(LastDir(), "MANIFEST"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(LastDir(), "ABSENT"), []byte(live+"\n/etc/ssh/sshd_config\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RestoreLast(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(live); err != nil {
+		t.Fatal("foreign file was deleted")
+	}
+}

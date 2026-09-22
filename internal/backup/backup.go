@@ -61,18 +61,29 @@ func Snapshot(paths ...string) error {
 	if err := os.MkdirAll(LastDir(), 0700); err != nil {
 		return err
 	}
+	seen := map[string]bool{}
 	var saved []string
+	var absent []string
 	for _, p := range paths {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
 		err := copyPath(p, filepath.Join(LastDir(), filepath.Base(p)+"__"+encode(p)))
 		if err == nil {
 			saved = append(saved, p)
 			continue
 		}
-		if !os.IsNotExist(err) {
-			return err
+		if os.IsNotExist(err) {
+			absent = append(absent, p)
+			continue
 		}
+		return err
 	}
-	return writeManifest(saved)
+	if err := writeLines(filepath.Join(LastDir(), "MANIFEST"), saved); err != nil {
+		return err
+	}
+	return writeLines(filepath.Join(LastDir(), "ABSENT"), absent)
 }
 
 func copyPath(src, dst string) error {
@@ -97,12 +108,12 @@ func copyPath(src, dst string) error {
 	return err
 }
 
-func writeManifest(paths []string) error {
+func writeLines(path string, paths []string) error {
 	var b []byte
 	for _, p := range paths {
 		b = append(b, []byte(p+"\n")...)
 	}
-	return os.WriteFile(filepath.Join(LastDir(), "MANIFEST"), b, 0600)
+	return os.WriteFile(path, b, 0600)
 }
 
 func RestoreLast() ([]string, error) {
@@ -121,7 +132,37 @@ func RestoreLast() ([]string, error) {
 		}
 		restored = append(restored, p)
 	}
+	if abs, err := os.ReadFile(filepath.Join(LastDir(), "ABSENT")); err == nil {
+		for _, p := range splitLines(string(abs)) {
+			if !CreatedByUs(p) {
+				continue
+			}
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				return restored, err
+			}
+			restored = append(restored, p)
+		}
+	}
 	return restored, nil
+}
+
+// CreatedByUs is true for files Defendra itself writes. Undo may delete them
+// only when the snapshot recorded that they did not exist before protect.
+func CreatedByUs(p string) bool {
+	switch p {
+	case "/etc/ssh/sshd_config.d/00-defendra.conf",
+		"/etc/ssh/sshd_config.d/99-defendra.conf",
+		"/etc/sysctl.d/99-defendra.conf",
+		"/etc/fail2ban/jail.d/defendra.conf",
+		"/etc/sudoers.d/defendra-admin",
+		"/etc/update-motd.d/99-defendra",
+		"/etc/apt/apt.conf.d/51defendra-unattended",
+		"/etc/systemd/system/defendra-watch.service",
+		"/etc/systemd/system/defendra-watch.timer":
+		return true
+	default:
+		return false
+	}
 }
 
 func HasLast() bool {

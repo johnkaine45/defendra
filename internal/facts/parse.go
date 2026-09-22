@@ -50,18 +50,20 @@ func ParseSS(out string) []Listen {
 	sc := bufio.NewScanner(strings.NewReader(out))
 	for sc.Scan() {
 		line := sc.Text()
-		if strings.Contains(strings.ToUpper(line), "UNCONN") {
+		up := strings.ToUpper(line)
+		low := strings.ToLower(line)
+		udp := strings.Contains(low, "udp")
+		listen := strings.Contains(up, "LISTEN")
+		unconn := strings.Contains(up, "UNCONN")
+		if unconn && !udp {
 			continue
 		}
-		if !strings.Contains(strings.ToUpper(line), "LISTEN") {
+		if !listen && !unconn {
 			continue
 		}
 		fields := strings.Fields(line)
-		if len(fields) < 4 {
-			continue
-		}
-		local := fields[3]
-		if !strings.Contains(local, ":") {
+		local := pickLocal(fields)
+		if local == "" {
 			continue
 		}
 		addr, portStr := splitHostPort(local)
@@ -69,20 +71,35 @@ func ParseSS(out string) []Listen {
 		if err != nil {
 			continue
 		}
-		proc := ""
+		l := Listen{Proto: "tcp", Addr: addr, Port: port}
+		if udp {
+			l.Proto = "udp"
+		}
+		if unconn && !l.Public() {
+			continue
+		}
 		if i := strings.Index(line, `users:(("`); i >= 0 {
 			rest := line[i+len(`users:(("`):]
 			if j := strings.Index(rest, `"`); j > 0 {
-				proc = rest[:j]
+				l.Process = rest[:j]
 			}
 		}
-		proto := "tcp"
-		if strings.Contains(strings.ToLower(line), "udp") {
-			proto = "udp"
-		}
-		res = append(res, Listen{Proto: proto, Addr: addr, Port: port, Process: proc})
+		res = append(res, l)
 	}
 	return res
+}
+
+func pickLocal(fields []string) string {
+	for _, f := range fields {
+		if !strings.Contains(f, ":") || strings.HasPrefix(f, "users:") {
+			continue
+		}
+		_, port := splitHostPort(f)
+		if _, err := strconv.Atoi(port); err == nil {
+			return f
+		}
+	}
+	return ""
 }
 
 func splitHostPort(local string) (string, string) {
@@ -128,13 +145,15 @@ func ParseUFW(out string) Firewall {
 			fields := strings.Fields(line)
 			if len(fields) > 0 {
 				tok := fields[0]
-				tok = strings.TrimSuffix(tok, "/tcp")
-				tok = strings.TrimSuffix(tok, "/udp")
-				if _, err := strconv.Atoi(tok); err == nil {
-					fw.Allows = appendUnique(fw.Allows, tok)
+				if n, rest, ok := strings.Cut(tok, "/"); ok {
+					if _, err := strconv.Atoi(n); err == nil && (rest == "tcp" || rest == "udp") {
+						fw.Allows = appendUnique(fw.Allows, n+"/"+rest)
+					}
+				} else if _, err := strconv.Atoi(tok); err == nil {
+					fw.Allows = appendUnique(fw.Allows, tok+"/tcp")
 				}
 				if strings.Contains(ll, "openssh") {
-					fw.Allows = appendUnique(fw.Allows, "22")
+					fw.Allows = appendUnique(fw.Allows, "22/tcp")
 				}
 			}
 		}

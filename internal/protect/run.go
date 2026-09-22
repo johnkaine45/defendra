@@ -184,10 +184,15 @@ Enter, если спросит перезаписать — напишите n (
 	snapPaths := []string{
 		sshdDropin, sshdDropinLegacy, sysctlDropin, fail2banJail, sudoersFile, motdFile,
 		autoUpgrades, "/etc/apt/apt.conf.d/51defendra-unattended",
+		watchUnit, watchTimer,
 		"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules",
+		"/etc/redis/redis.conf", "/etc/mysql/mysql.conf.d/mysqld.cnf",
 	}
 	if extra, err := filepath.Glob("/etc/ssh/sshd_config.d/*.conf"); err == nil {
 		snapPaths = append(snapPaths, extra...)
+	}
+	if pg, err := filepath.Glob("/etc/postgresql/*/main/postgresql.conf"); err == nil {
+		snapPaths = append(snapPaths, pg...)
 	}
 	_ = backup.Snapshot(snapPaths...)
 
@@ -215,6 +220,8 @@ Enter, если спросит перезаписать — напишите n (
 		if err := aptInstall(ctx); err != nil {
 			u.Println("Не получилось поставить пакеты. Сеть или репозиторий Ubuntu. Попробуйте через 5 минут: sudo defendra protect")
 			u.Printf("(%v)\n", err)
+			u.Println("SSH и фильтр не трогаю.")
+			return 2
 		}
 	}
 
@@ -232,10 +239,10 @@ Enter, если спросит перезаписать — напишите n (
 	_ = setupFail2ban(ctx, hi.SSHClient)
 
 	u.Progress(5, total, "Проверяю автообновления безопасности…")
-	_ = setupUnattended()
+	_ = setupUnattended(snap.Packages.UnattendedEnabled)
 
 	u.Progress(6, total, "Проверяю, не торчат ли базы…")
-	_ = hideDatabases(ctx, snap)
+	_ = hideDatabases(ctx, snap, u, opt.Yes)
 
 	u.Progress(7, total, "Проверяю защиту от мелкого флуда…")
 	_ = setupSysctl(ctx)
@@ -378,14 +385,6 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 	}
 	cur, _, _ := oscmd.Run(ctx, 10*time.Second, "ufw", "status", "verbose")
 	have := facts.ParseUFW(cur)
-	if have.DefaultIn != "deny" {
-		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "default", "deny", "incoming"); err != nil {
-			return err
-		}
-	}
-	if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "default", "allow", "outgoing"); err != nil {
-		return err
-	}
 	want := check.MergePorts([]int{sshPort}, keep)
 	if listening(snap, 80) || listening(snap, 443) {
 		want = check.MergePorts(want, []int{80, 443})
@@ -393,11 +392,28 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 	if panel != 0 {
 		want = check.MergePorts(want, []int{panel})
 	}
+	want = check.MergePorts(want, leftoverPublicPorts(snap, want, "tcp"))
 	for _, p := range want {
-		if have.AllowsPort(p) {
+		if have.AllowsProto(p, "tcp") {
 			continue
 		}
 		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "allow", strconv.Itoa(p)+"/tcp"); err != nil {
+			return err
+		}
+	}
+	for _, p := range leftoverPublicPorts(snap, nil, "udp") {
+		if have.AllowsProto(p, "udp") {
+			continue
+		}
+		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "allow", strconv.Itoa(p)+"/udp"); err != nil {
+			return err
+		}
+	}
+	if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "default", "allow", "outgoing"); err != nil {
+		return err
+	}
+	if have.DefaultIn != "deny" {
+		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "default", "deny", "incoming"); err != nil {
 			return err
 		}
 	}
@@ -458,12 +474,36 @@ ignoreip = %s
 	return fmt.Errorf("служба защиты от подбора пароля не запустилась")
 }
 
-func setupUnattended() error {
+func leftoverPublicPorts(snap facts.Snapshot, already []int, proto string) []int {
+	if proto == "" {
+		proto = "tcp"
+	}
+	have := map[int]bool{}
+	for _, p := range already {
+		have[p] = true
+	}
+	var extra []int
+	for _, p := range snap.Ports {
+		if !p.Public() || p.Proto != proto {
+			continue
+		}
+		if check.IsDBPort(p.Port) || have[p.Port] {
+			continue
+		}
+		have[p.Port] = true
+		extra = append(extra, p.Port)
+	}
+	return extra
+}
+
+func setupUnattended(alreadyOn bool) error {
 	body := `APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 `
-	if _, err := writeIfChanged(autoUpgrades, body, 0644); err != nil {
-		return err
+	if !alreadyOn {
+		if _, err := writeIfChanged(autoUpgrades, body, 0644); err != nil {
+			return err
+		}
 	}
 	onlySec := `Unattended-Upgrade::Allowed-Origins {
         "${distro_id}:${distro_codename}-security";
@@ -493,30 +533,48 @@ net.ipv4.tcp_max_syn_backlog=4096
 	return err
 }
 
-func hideDatabases(ctx context.Context, snap facts.Snapshot) error {
+func hideDatabases(ctx context.Context, snap facts.Snapshot, u *ui.IO, yes bool) error {
+	type job struct {
+		name, unit, hint string
+		apply            func() bool
+	}
+	jobs := map[int]job{
+		6379: {"Redis", "redis-server", "sudo systemctl restart redis-server", func() bool {
+			ok, _ := setConfigLine("/etc/redis/redis.conf", "bind", "bind 127.0.0.1 -::1")
+			return ok
+		}},
+		5432: {"PostgreSQL", "postgresql", "sudo systemctl restart postgresql", func() bool {
+			return patchListenAddresses()
+		}},
+		3306: {"MySQL", "mysql", "sudo systemctl restart mysql", func() bool {
+			ok, _ := setConfigLine("/etc/mysql/mysql.conf.d/mysqld.cnf", "bind-address", "bind-address = 127.0.0.1")
+			return ok
+		}},
+	}
+	seen := map[int]bool{}
 	for _, p := range snap.Ports {
-		if !p.Public() {
+		if !p.Public() || dockerishProc(p.Process) || seen[p.Port] {
 			continue
 		}
-		if dockerishProc(p.Process) {
+		j, ok := jobs[p.Port]
+		if !ok {
 			continue
 		}
-		switch p.Port {
-		case 6379:
-			changed, _ := setConfigLine("/etc/redis/redis.conf", "bind", "bind 127.0.0.1 -::1")
-			if changed {
-				_, _, _ = oscmd.Run(ctx, 20*time.Second, "systemctl", "restart", "redis-server")
-			}
-		case 5432:
-			changed := patchListenAddresses()
-			if changed {
-				_, _, _ = oscmd.Run(ctx, 20*time.Second, "systemctl", "restart", "postgresql")
-			}
-		case 3306:
-			changed, _ := setConfigLine("/etc/mysql/mysql.conf.d/mysqld.cnf", "bind-address", "bind-address = 127.0.0.1")
-			if changed {
-				_, _, _ = oscmd.Run(ctx, 20*time.Second, "systemctl", "restart", "mysql")
-			}
+		seen[p.Port] = true
+		if !j.apply() {
+			continue
+		}
+		if yes {
+			u.Println("Закрыл " + j.name + " в настройке. Чтобы применилось: " + j.hint)
+			continue
+		}
+		okRestart, err := u.Confirm("Перезапущу " + j.name + ", чтобы закрыть его с улицы.\nЕсли сайт на этой базе — на секунды моргнёт.")
+		if err != nil || !okRestart {
+			u.Println("Настройку записал. Чтобы закрыть с улицы: " + j.hint)
+			continue
+		}
+		if _, _, err := oscmd.Run(ctx, 20*time.Second, "systemctl", "restart", j.unit); err != nil {
+			u.Println("Не перезапустил " + j.name + ". Сделайте сами: " + j.hint)
 		}
 	}
 	return nil
@@ -571,7 +629,15 @@ func patchListenAddresses() bool {
 			continue
 		}
 		s := string(b)
-		n := strings.ReplaceAll(s, "listen_addresses = '*'", "listen_addresses = 'localhost'")
+		n := s
+		for _, old := range []string{
+			"listen_addresses = '*'",
+			"listen_addresses='*'",
+			`listen_addresses = "*"`,
+			`listen_addresses="*"`,
+		} {
+			n = strings.ReplaceAll(n, old, "listen_addresses = 'localhost'")
+		}
 		if n == s {
 			continue
 		}
@@ -673,7 +739,10 @@ AllowUsers %s
 		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T")
 	}
 	if err != nil {
-		return nil
+		_ = restoreSSHDropins(rollback)
+		_ = os.Remove(sshdDropin)
+		_ = reloadSSH(ctx)
+		return fmt.Errorf("не смог проверить настройку входа, пароль не закрываю")
 	}
 	eff := facts.ParseSSHDT(out)
 	if strings.EqualFold(eff.PasswordAuth, "yes") || strings.EqualFold(eff.PermitRootLogin, "yes") {
@@ -923,7 +992,41 @@ func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
 	if strings.EqualFold(snap.SSH.PasswordAuth, "yes") || strings.EqualFold(snap.SSH.PermitRootLogin, "yes") {
 		return false
 	}
+	if hostDBExposed(snap) {
+		return false
+	}
+	if firewallGaps(snap) {
+		return false
+	}
 	return samePorts(st.KeepPorts, keep)
+}
+
+func firewallGaps(snap facts.Snapshot) bool {
+	if !snap.Firewall.Active {
+		return true
+	}
+	for _, p := range snap.Ports {
+		if !p.Public() || check.IsDBPort(p.Port) {
+			continue
+		}
+		proto := p.Proto
+		if proto == "" {
+			proto = "tcp"
+		}
+		if !snap.Firewall.AllowsProto(p.Port, proto) {
+			return true
+		}
+	}
+	return false
+}
+
+func hostDBExposed(snap facts.Snapshot) bool {
+	for _, p := range snap.Ports {
+		if p.Public() && check.IsDBPort(p.Port) && !dockerishProc(p.Process) {
+			return true
+		}
+	}
+	return false
 }
 
 func samePorts(a, b []int) bool {

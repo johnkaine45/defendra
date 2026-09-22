@@ -39,3 +39,41 @@ func TestAlreadyQuietNewPort(t *testing.T) {
 		t.Fatal("new port should run full protect")
 	}
 }
+
+func TestAlreadyQuietHostDB(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+		Ports:    []facts.Listen{{Proto: "tcp", Addr: "0.0.0.0", Port: 6379, Process: "redis-server"}},
+	}
+	if alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("public host DB should not skip protect")
+	}
+	snap.Ports[0].Process = "docker-proxy"
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("docker DB is warn-only, quiet is ok")
+	}
+}
+
+func TestAlreadyQuietUDPGap(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22/tcp", "80/tcp", "443/tcp"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+		Ports:    []facts.Listen{{Proto: "udp", Addr: "0.0.0.0", Port: 51820, Process: "wg"}},
+	}
+	if alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("open UDP must not skip protect — would lock a VPN")
+	}
+	snap.Firewall.Allows = append(snap.Firewall.Allows, "51820/udp")
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("allowed UDP should stay quiet")
+	}
+}

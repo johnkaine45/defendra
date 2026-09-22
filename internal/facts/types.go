@@ -92,9 +92,17 @@ type Firewall struct {
 }
 
 func (f Firewall) AllowsPort(port int) bool {
+	return f.AllowsProto(port, "tcp") || f.AllowsProto(port, "udp")
+}
+
+func (f Firewall) AllowsProto(port int, proto string) bool {
+	if proto == "" {
+		proto = "tcp"
+	}
 	want := strconv.Itoa(port)
+	spec := want + "/" + proto
 	for _, a := range f.Allows {
-		if a == want || a == want+"/tcp" {
+		if a == spec || a == want {
 			return true
 		}
 	}

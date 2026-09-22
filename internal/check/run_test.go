@@ -190,12 +190,13 @@ func TestProjectPortsSkipsRedis(t *testing.T) {
 			{Addr: "0.0.0.0", Port: 22, Proto: "tcp", Process: "sshd"},
 			{Addr: "0.0.0.0", Port: 80, Proto: "tcp", Process: "nginx"},
 			{Addr: "0.0.0.0", Port: 6379, Proto: "tcp", Process: "redis-server"},
+			{Addr: "0.0.0.0", Port: 8888, Proto: "tcp", Process: "aapanel"},
 			{Addr: "0.0.0.0", Port: 3000, Proto: "tcp", Process: "docker-proxy"},
 			{Addr: "127.0.0.1", Port: 4000, Proto: "tcp", Process: "docker-proxy"},
 		},
 	}
 	got := ProjectPorts(s)
-	if len(got) != 2 || got[0] != 80 || got[1] != 3000 {
-		t.Fatalf("%v", got)
+	if len(got) != 3 || got[0] != 80 || got[1] != 8888 || got[2] != 3000 {
+		t.Fatalf("want 80,8888,3000 got %v", got)
 	}
 }

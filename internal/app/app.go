@@ -61,7 +61,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			u.Println("Без окна терминала Defendra сама не спрашивает. Напишите:\n\n  sudo defendra " + cmd + " --yes")
 			return 2
 		}
-		if hi.Desktop && cmd == "protect" && !flags.yes {
+		if hi.Desktop && cmd == "protect" {
+			if flags.yes {
+				u.Println(`Похоже, это не VDS, а обычный компьютер с Ubuntu.
+--yes здесь не сработает: можно закрыть себе вход.
+Если это всё-таки сервер — запустите без --yes и подтвердите.`)
+				return 2
+			}
 			ok, _ := u.Confirm(`Похоже, это не VDS, а обычный компьютер с Ubuntu.
 Defendra для облачного сервера. Здесь запускать не нужно:
 можно закрыть себе вход.
