@@ -205,7 +205,8 @@ Enter, если спросит перезаписать — напишите n (
 	total := 9
 	var sudoPW string
 
-	if userExists(opt.User) {
+	existed := userExists(opt.User)
+	if existed {
 		u.Progress(1, total, "Проверяю пользователя "+opt.User+"…")
 	} else {
 		u.Progress(1, total, "Создаю пользователя "+opt.User+"…")
@@ -216,6 +217,9 @@ Enter, если спросит перезаписать — напишите n (
 		return 2
 	}
 	sudoPW = pw
+	if existed && sudoPW != "" {
+		u.Println("Задал новый пароль для команды sudo. Старый больше не подойдёт.")
+	}
 	if sudoPW == "" && !st.HasProtect {
 		if b, err := os.ReadFile(firstLogin); err == nil {
 			sudoPW = strings.TrimSpace(string(b))
@@ -277,7 +281,7 @@ Enter, если спросит перезаписать — напишите n (
 	if skipped := passwordOnlyLogins(snap2, opt.User); len(skipped) > 0 {
 		u.Println("Пользователь " + strings.Join(skipped, ", ") + " входит только по паролю.")
 		u.Println("После закрытия пароля он не зайдёт по SSH. Добавьте ему ключ или заходите как " + opt.User + ".")
-		if canLock && opt.Yes {
+		if canLock && lockBlockedByPasswordOnly(opt.Yes, skipped) {
 			canLock = false
 			u.Println("Пароль SSH не закрывал: есть пользователь только с паролем. Добавьте ключ или запустите без --yes.")
 		} else if canLock {

@@ -29,6 +29,11 @@ type State struct {
 }
 
 func Path() string        { return filepath.Join(Dir, "state.json") }
+
+func Saved() bool {
+	_, err := os.Stat(Path())
+	return err == nil
+}
 func SummaryPath() string { return filepath.Join(Dir, "summary.json") }
 func MotdPath() string    { return filepath.Join(Dir, "motd.txt") }
 func ScansDir() string    { return filepath.Join(Dir, "scans") }

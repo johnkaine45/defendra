@@ -64,16 +64,43 @@ func TestAllowUsersApplied(t *testing.T) {
 }
 
 func TestNeedNewSudoPassword(t *testing.T) {
-	if !needNewSudoPassword(false, true, false) {
+	if !needNewSudoPassword(false, true, false, false) {
 		t.Fatal("new user")
 	}
-	if !needNewSudoPassword(true, true, false) {
+	if !needNewSudoPassword(true, true, false, false) {
 		t.Fatal("existing admin, first protect, no file")
 	}
-	if needNewSudoPassword(true, true, true) {
+	if needNewSudoPassword(true, true, true, true) {
 		t.Fatal("already have first-login")
 	}
-	if needNewSudoPassword(true, false, false) {
+	if needNewSudoPassword(true, false, true, false) {
 		t.Fatal("repeat protect must not rotate")
+	}
+	if !needNewSudoPassword(true, false, false, false) {
+		t.Fatal("wiped state.json, drop-in left, no first-login")
+	}
+}
+
+func TestLockBlockedByPasswordOnly(t *testing.T) {
+	if !lockBlockedByPasswordOnly(true, []string{"alice"}) {
+		t.Fatal("yes + skipped")
+	}
+	if lockBlockedByPasswordOnly(false, []string{"alice"}) {
+		t.Fatal("interactive still asks")
+	}
+	if lockBlockedByPasswordOnly(true, nil) {
+		t.Fatal("yes alone is fine")
+	}
+}
+
+func TestSSHKeyLineKnown(t *testing.T) {
+	merged := "ssh-ed25519 AAAAlong key-a\n"
+	if sshKeyLineKnown(merged, "ssh-ed25519 AAAAlong key-a") {
+		// ok
+	} else {
+		t.Fatal("exact")
+	}
+	if sshKeyLineKnown(merged, "ssh-ed25519 AAA") {
+		t.Fatal("substring must not count")
 	}
 }

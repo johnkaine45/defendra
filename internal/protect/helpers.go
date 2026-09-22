@@ -288,11 +288,11 @@ func ensureUser(ctx context.Context, name, keyLine string, firstProtect bool) (s
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if !strings.Contains(merged, line) {
+		if !sshKeyLineKnown(merged, line) {
 			merged = strings.TrimSpace(merged) + "\n" + line + "\n"
 		}
 	}
-	if keyLine != "" && !strings.Contains(merged, keyLine) {
+	if keyLine != "" && !sshKeyLineKnown(merged, keyLine) {
 		merged = strings.TrimSpace(merged) + "\n" + keyLine + "\n"
 	}
 	if err := os.WriteFile(ak, []byte(strings.TrimSpace(merged)+"\n"), 0600); err != nil {
@@ -303,7 +303,7 @@ func ensureUser(ctx context.Context, name, keyLine string, firstProtect bool) (s
 	_, _, _ = oscmd.Run(ctx, 5*time.Second, "chmod", "600", ak)
 
 	var pw string
-	if needNewSudoPassword(existed, firstProtect, firstLoginPresent()) {
+	if needNewSudoPassword(existed, firstProtect, state.Saved(), firstLoginPresent()) {
 		var err error
 		pw, err = randPassword()
 		if err != nil {
@@ -331,16 +331,36 @@ func ensureUser(ctx context.Context, name, keyLine string, firstProtect bool) (s
 	return pw, nil
 }
 
-func needNewSudoPassword(existed, firstProtect, haveLoginFile bool) bool {
+func needNewSudoPassword(existed, firstProtect, stateSaved, haveLoginFile bool) bool {
 	if !existed {
 		return true
 	}
-	return firstProtect && !haveLoginFile
+	if haveLoginFile {
+		return false
+	}
+	return firstProtect || !stateSaved
 }
 
 func firstLoginPresent() bool {
 	b, err := os.ReadFile(firstLogin)
 	return err == nil && strings.TrimSpace(string(b)) != ""
+}
+
+func sshKeyLineKnown(merged, line string) bool {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return true
+	}
+	for _, l := range strings.Split(merged, "\n") {
+		if strings.TrimSpace(l) == line {
+			return true
+		}
+	}
+	return false
+}
+
+func lockBlockedByPasswordOnly(yes bool, skipped []string) bool {
+	return yes && len(skipped) > 0
 }
 
 func groupExists(name string) bool {
