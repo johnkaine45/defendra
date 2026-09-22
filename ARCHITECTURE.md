@@ -158,7 +158,7 @@ print how-to-login + ритуал второго окна, если SSH закр
 
 | Что | Как |
 |---|---|
-| SSH | только `/etc/ssh/sshd_config.d/99-defendra.conf`. Не переписывать основной файл хостера |
+| SSH | только `/etc/ssh/sshd_config.d/00-defendra.conf` (first-wins OpenSSH). Не переписывать основной файл хостера |
 | sysctl | `/etc/sysctl.d/99-defendra.conf` |
 | fail2ban | `/etc/fail2ban/jail.d/defendra.conf` |
 | UFW | команды `ufw`, не ручные iptables |
@@ -170,7 +170,7 @@ print how-to-login + ритуал второго окна, если SSH закр
 
 Запрещённые команды: `passwd -l root`, `usermod -L root`, `passwd -d root`. Root в консоли хостера должен остаться рабочим.
 
-Патч баз: маленькие известные шаблоны (PostgreSQL `listen_addresses`, Redis `bind`, MySQL `bind-address`). Если файл не похож на шаблон — не трогаем, полагаемся на UFW.
+Патч баз: маленькие известные шаблоны (PostgreSQL `listen_addresses`, Redis `bind`, MySQL `bind-address`, Mongo `bindIp`, Elasticsearch `network.host`). Если файл не похож на шаблон — не трогаем, полагаемся на UFW. Docker `-p 0.0.0.0` не переписываем.
 
 ## 6. Команды ОС
 

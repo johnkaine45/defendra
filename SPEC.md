@@ -165,11 +165,11 @@ sudo defendra protect
 
 ### Шаг 3. Файрвол — сначала дырки для себя, потом замок
 
-1. Сначала `allow` уже слушающих публичных TCP и UDP (сайт, Docker, VPN, панель, SSH). Потом `default deny incoming`, `default allow outgoing`. Не наоборот — иначе прод на секунды теряет порты.
+1. Сначала `allow` уже слушающих публичных TCP и UDP (сайт, Docker, VPN, SSH; панель — только если на вопрос ответили да). Потом `default deny incoming`, `default allow outgoing`. Не наоборот — иначе прод на секунды теряет порты.
 2. Allow текущего SSH-порта TCP на IPv4 и IPv6.
 3. Если уже слушают 80/443 (nginx, caddy, apache, traefik) — allow 80 и 443.
 4. Иначе 80/443 **не** открываем «на всякий случай». Сайт, который поставят завтра, открывают командой `defendra allow-site`, а не выключением UFW.
-5. Если найдена панель управления — один вопрос, Enter = allow её порта (IPv4 и IPv6). Если порт уже слушает с улицы — не закрываем молча.
+5. Если найдена панель управления — один вопрос, Enter = allow её порта (IPv4 и IPv6). Ответ «нет» — порт панели не оставляем в leftover и снимаем его allow, если он уже был. Это не молча: человек ответил.
 6. Только после правил — `ufw enable`.
 7. Если `ufw enable` не подтвердил active — стоп, не идём закрывать SSH.
 
@@ -181,6 +181,7 @@ sudo defendra protect
 - Ban после 5 неудачных попыток за 10 минут, бан 1 час.
 - Не банить 127.0.0.1 и текущий IP сессии, если он виден из `SSH_CONNECTION`.
 - В интерфейсе: «защита от подбора пароля», не имя пакета.
+- Если служба не стала active — SSH-пароль не закрываем, экран не пишет «готово».
 
 ### Шаг 5. Автообновления
 
@@ -191,7 +192,8 @@ sudo defendra protect
 
 Если процесс слушает `0.0.0.0` или `::` на портах 5432, 3306, 6379, 27017, 9200, 2375:
 
-- для **типичного VDS** (профиль fresh-vds) Defendra переводит listen на `127.0.0.1`. Перезапуск службы — только после вопроса (на проде база не должна моргнуть молча). `--yes` пишет команду restart, сам не перезапускает;
+- для **хостовой** службы (профиль fresh-vds) Defendra переводит listen на `127.0.0.1` (Redis, Postgres, MySQL, Mongo, Elasticsearch). Перезапуск — только после вопроса. `--yes` пишет файл и печатает, что с улицы ещё открыто, пока не сделают restart;
+- Docker `-p 0.0.0.0` базу не трогает: статус красный, контейнер жив;
 - если не умеет пропатчить уверенно — не трогает файл, включает UFW deny на этот порт снаружи (уже default deny) и пишет: «сервис слушает всех, но файрвол его прячет; лучше слушать только localhost».
 
 Не закрываем и не переписываем то, что уже слушает только localhost.
@@ -226,7 +228,7 @@ sudo defendra protect
 
 Порт SSH **не меняем**. Смена порта ломает вход из панели и почти не спасает.
 
-Правка через drop-in `/etc/ssh/sshd_config.d/99-defendra.conf`, не ломая cloud-init хостера. Потом `sshd -t`, затем `reload`, не `restart`. Текущая сессия должна выжить, чтобы сработал ритуал второго окна (§4.1.1).
+Правка через drop-in `/etc/ssh/sshd_config.d/00-defendra.conf` (OpenSSH first-wins), не ломая cloud-init хостера. Потом `sshd -t`, затем `reload`, не `restart`. После reload читаем `sshd -T`: пароль/root и `AllowUsers` должны совпасть с задуманным, иначе откат drop-in. Текущая сессия должна выжить, чтобы сработал ритуал второго окна (§4.1.1).
 
 Если gate не пройден — этот шаг пропускается, статус жёлтый, пароль SSH жив, fail2ban уже работает.
 
@@ -329,7 +331,7 @@ Severity для человека в status схлопывается в: защи
 | `FW-DISABLED` | UFW не active | да |
 | `FW-SSH-MISSING` | UFW on, SSH-порт не allowed | да (сначала allow) |
 | `FW-WEB-BLOCKED` | веб-сервер слушает 80/443, UFW их не пускает | нет: `defendra allow-site` |
-| `NET-DB-EXPOSED` | postgres/mysql/redis/mongo/docker API на 0.0.0.0/`::` | да: localhost или прячем файрволом |
+| `NET-DB-EXPOSED` | postgres/mysql/redis/mongo/ES/docker API на 0.0.0.0/`::` | хост: localhost; Docker `-p`: нет, только красный статус |
 | `NET-UNEXPECTED-PORT` | новый публичный порт после protect | не сама; просит `protect` или объяснить |
 | `AUTH-FAIL2BAN` | fail2ban не работает | да, ставит и включает |
 | `PKG-UNATTENDED` | нет автообновлений security | да |
@@ -365,6 +367,7 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
 /etc/defendra/profile.json          # имя пользователя, ssh-порт на момент protect
 /var/lib/defendra/
   state.json                      # прошёл ли protect, какие шаги, how-to-login, site_allowed
+  summary.json                    # копия state, 0640
   first-login.txt                 # пароль sudo admin, 0600, после прочтения можно удалить
   scans/<timestamp>.json
   backups/last/
@@ -373,7 +376,7 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
 /var/log/defendra/
   audit.log                       # команды и результаты
   watch.log
-/etc/ssh/sshd_config.d/99-defendra.conf
+/etc/ssh/sshd_config.d/00-defendra.conf
 /etc/sysctl.d/99-defendra.conf
 /etc/fail2ban/jail.d/defendra.conf
 /etc/update-motd.d/99-defendra
@@ -390,8 +393,8 @@ Exit codes:
 
 | Код | Когда |
 |---|---|
-| 0 | status зелёный; protect/undo/allow-site/dry-run успех |
-| 1 | status жёлтый или красный (для cron/watch) |
+| 0 | status зелёный; protect/undo/allow-site/dry-run успех; тихий повторный protect только если уровень «порядок» |
+| 1 | status жёлтый или красный (для cron/watch); тихий protect, если уровень не зелёный |
 | 2 | ошибка: не Ubuntu, нет root, сломан sshd, lock, apt fail, allow-site без активного UFW |
 
 `--format json` — только stdout. Вопросы, прогресс и ритуал второго окна — stderr (чтобы JSON не ломать) **кроме** обычного text-режима, где ритуал идёт в stdout как главная памятка.

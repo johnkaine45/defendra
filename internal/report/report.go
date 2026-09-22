@@ -50,7 +50,7 @@ func Level(fs []check.Finding) string {
 	red := map[string]bool{
 		"NET-DB-EXPOSED": true, "USER-UID0": true, "NET-UNEXPECTED-PORT": true,
 		"WATCH-UFW-OFF": true, "PERM-SHADOW": true, "SSH-EMPTY-PASS": true,
-		"WATCH-SELF-PERMS": true,
+		"WATCH-SELF-PERMS": true, "FW-SSH-MISSING": true,
 	}
 	yellow := false
 	for _, f := range fs {
@@ -70,7 +70,7 @@ func Level(fs []check.Finding) string {
 
 func Primary(fs []check.Finding) *check.Finding {
 	order := []string{
-		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "PERM-SHADOW", "WATCH-SELF-PERMS",
+		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "FW-SSH-MISSING", "PERM-SHADOW", "WATCH-SELF-PERMS",
 		"FW-WEB-BLOCKED", "SSH-NO-KEY", "SSH-PASSWORD", "SSH-ROOT-LOGIN",
 		"FW-DISABLED", "AUTH-FAIL2BAN", "PKG-UNATTENDED", "NET-UNEXPECTED-PORT",
 	}

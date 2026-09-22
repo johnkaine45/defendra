@@ -77,3 +77,12 @@ func TestAlreadyQuietUDPGap(t *testing.T) {
 		t.Fatal("allowed UDP should stay quiet")
 	}
 }
+
+func TestExitIfNotGreen(t *testing.T) {
+	if exitIfNotGreen("green") != 0 {
+		t.Fatal("green")
+	}
+	if exitIfNotGreen("yellow") != 1 || exitIfNotGreen("red") != 1 {
+		t.Fatal("not green")
+	}
+}

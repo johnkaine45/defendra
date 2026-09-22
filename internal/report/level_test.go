@@ -59,6 +59,15 @@ func TestPrettyAllows(t *testing.T) {
 	}
 }
 
+func TestLevelSSHMissingIsRed(t *testing.T) {
+	fs := []check.Finding{
+		{ID: "FW-SSH-MISSING", Status: check.Fail, Severity: check.SevCritical},
+	}
+	if Level(fs) != "red" {
+		t.Fatalf("got %s", Level(fs))
+	}
+}
+
 func TestLevelDBIsRed(t *testing.T) {
 	fs := []check.Finding{
 		{ID: "NET-DB-EXPOSED", Status: check.Fail, Severity: check.SevHigh},

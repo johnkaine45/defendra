@@ -167,20 +167,37 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 		for _, p := range keepPorts {
 			expected[p] = true
 		}
-		seen := map[int]bool{}
+		seen := map[string]bool{}
 		var extra []string
 		for _, p := range s.Ports {
-			if !p.Public() || p.Proto != "tcp" {
+			if !p.Public() {
 				continue
 			}
-			if expected[p.Port] || dbPorts[p.Port] != "" || seen[p.Port] {
+			proto := p.Proto
+			if proto == "" {
+				proto = "tcp"
+			}
+			if dbPorts[p.Port] != "" {
 				continue
 			}
-			if p.Port == 22 || p.Port == 80 || p.Port == 443 {
+			if expected[p.Port] && proto == "tcp" {
 				continue
 			}
-			seen[p.Port] = true
-			extra = append(extra, strconv.Itoa(p.Port))
+			if proto == "tcp" && (p.Port == 22 || p.Port == 80 || p.Port == 443) {
+				continue
+			}
+			if proto == "udp" && (expected[p.Port] || s.Firewall.AllowsProto(p.Port, "udp")) {
+				continue
+			}
+			key := strconv.Itoa(p.Port)
+			if proto != "tcp" {
+				key += "/" + proto
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			extra = append(extra, key)
 		}
 		nst, nplain := Pass, "Новых публичных портов нет."
 		if len(extra) > 0 {

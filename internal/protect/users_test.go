@@ -36,3 +36,29 @@ func TestSSHAllowUsersKeepsDeploy(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+func TestPasswordOnlyLogins(t *testing.T) {
+	snap := facts.Snapshot{
+		Users: []facts.User{
+			{Name: "admin", UID: 1000, HasKeys: true, Shell: "/bin/bash"},
+			{Name: "alice", UID: 1001, HasKeys: false, Shell: "/bin/bash"},
+			{Name: "git", UID: 1002, HasKeys: false, Shell: "/usr/sbin/nologin"},
+		},
+	}
+	got := passwordOnlyLogins(snap, "admin")
+	if len(got) != 1 || got[0] != "alice" {
+		t.Fatalf("%v", got)
+	}
+}
+
+func TestAllowUsersApplied(t *testing.T) {
+	if !allowUsersApplied([]string{"admin", "deploy"}, []string{"admin", "deploy"}) {
+		t.Fatal("same")
+	}
+	if allowUsersApplied([]string{"deploy"}, []string{"admin", "deploy"}) {
+		t.Fatal("missing admin")
+	}
+	if allowUsersApplied(nil, []string{"admin"}) {
+		t.Fatal("empty effective")
+	}
+}

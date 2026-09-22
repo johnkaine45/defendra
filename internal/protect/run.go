@@ -148,10 +148,12 @@ Enter, если спросит перезаписать — напишите n (
 		u.Println("  • фильтр входящих подключений, порт входа открыт")
 		if allowPanel != 0 {
 			u.Println("  • порт панели " + strconv.Itoa(allowPanel) + " открыт")
+		} else if len(snap.Panels) > 0 {
+			u.Println("  • порт панели " + strconv.Itoa(snap.Panels[0].Port) + " с улицы закрою")
 		}
 		u.Println("  • защита от подбора пароля")
 		u.Println("  • автообновления безопасности")
-		keep := check.MergePorts(st.KeepPorts, check.ProjectPorts(snap))
+		keep := plannedKeep(st, snap, allowPanel)
 		if len(keep) > 0 {
 			u.Println("  • уже открытые порты проектов оставлю: " + joinPorts(keep))
 		}
@@ -187,6 +189,7 @@ Enter, если спросит перезаписать — напишите n (
 		watchUnit, watchTimer,
 		"/etc/ssh/sshd_config", "/etc/ufw/user.rules", "/etc/ufw/user6.rules",
 		"/etc/redis/redis.conf", "/etc/mysql/mysql.conf.d/mysqld.cnf",
+		"/etc/mongod.conf", "/etc/elasticsearch/elasticsearch.yml",
 	}
 	if extra, err := filepath.Glob("/etc/ssh/sshd_config.d/*.conf"); err == nil {
 		snapPaths = append(snapPaths, extra...)
@@ -236,7 +239,12 @@ Enter, если спросит перезаписать — напишите n (
 	}
 
 	u.Progress(4, total, "Проверяю защиту от подбора пароля…")
-	_ = setupFail2ban(ctx, hi.SSHClient)
+	banOK := true
+	if err := setupFail2ban(ctx, hi.SSHClient); err != nil {
+		banOK = false
+		u.Println("Не запустилась защита от подбора пароля. Пароль SSH не закрываю.")
+		u.Println("Повторите позже: sudo defendra protect")
+	}
 
 	u.Progress(5, total, "Проверяю автообновления безопасности…")
 	_ = setupUnattended(snap.Packages.UnattendedEnabled)
@@ -251,7 +259,11 @@ Enter, если спросит перезаписать — напишите n (
 	u.Progress(8, total, "Проверяю, можно ли закрыть пароль SSH…")
 	snap2 := facts.Collect(ctx, hi)
 	sshUsers := sshAllowUsers(snap2, opt.User)
-	if check.UserHasKeys(snap2, opt.User) || key != "" {
+	if skipped := passwordOnlyLogins(snap2, opt.User); len(skipped) > 0 {
+		u.Println("Пользователь " + strings.Join(skipped, ", ") + " входит только по паролю.")
+		u.Println("После закрытия пароля он не зайдёт по SSH. Добавьте ему ключ или заходите как " + opt.User + ".")
+	}
+	if banOK && (check.UserHasKeys(snap2, opt.User) || key != "") {
 		if err := lockSSH(ctx, opt.User, sshUsers); err != nil {
 			u.Printf("Не закрыл пароль SSH: %v\nТекущий вход должен работать.\n", err)
 		} else {
@@ -286,12 +298,16 @@ Enter, если спросит перезаписать — напишите n (
 	saveScan(snap3, fs)
 
 	ip := snap.Host.PublicIP
+	code := exitIfNotGreen(st.Level)
 	if locked {
 		audit.Event("protect", "ok", "ssh_locked")
 		u.Println("Готово. Пароль SSH выключен.")
 		if wasLocked {
 			u.Printf("Вход: ssh %s@%s\n", opt.User, ip)
-			return 0
+			if code != 0 {
+				u.Print(ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
+			}
+			return code
 		}
 		u.Println("")
 		u.Println("1. ЭТО ОКНО НЕ ЗАКРЫВАЙТЕ.")
@@ -304,7 +320,23 @@ Enter, если спросит перезаписать — напишите n (
 		u.Println("")
 		printPasswordBox(u, sudoPW)
 		u.Print("\n" + ui.HowToLogin(ip, opt.User, true))
-		return 0
+		if code != 0 {
+			u.Print(ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
+		}
+		return code
+	}
+	if !banOK {
+		audit.Event("protect", "partial", "auth_guard_failed")
+		u.Println(`
+Фильтр включён, но защита от подбора пароля не запустилась.
+Пароль SSH не закрывал.
+
+Повторите:
+  sudo defendra protect`)
+		if sudoPW != "" {
+			printPasswordBox(u, sudoPW)
+		}
+		return 1
 	}
 	audit.Event("protect", "partial", "ssh_password_still_on")
 	u.Println(`
@@ -392,7 +424,8 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 	if panel != 0 {
 		want = check.MergePorts(want, []int{panel})
 	}
-	want = check.MergePorts(want, leftoverPublicPorts(snap, want, "tcp"))
+	declined := declinedPanelPorts(snap, panel)
+	want = check.MergePorts(want, leftoverPublicPorts(snap, want, "tcp", declined))
 	for _, p := range want {
 		if have.AllowsProto(p, "tcp") {
 			continue
@@ -401,13 +434,19 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 			return err
 		}
 	}
-	for _, p := range leftoverPublicPorts(snap, nil, "udp") {
+	for _, p := range leftoverPublicPorts(snap, nil, "udp", nil) {
 		if have.AllowsProto(p, "udp") {
 			continue
 		}
 		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "allow", strconv.Itoa(p)+"/udp"); err != nil {
 			return err
 		}
+	}
+	for _, p := range declined {
+		if !have.AllowsProto(p, "tcp") {
+			continue
+		}
+		_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "delete", "allow", strconv.Itoa(p)+"/tcp")
 	}
 	if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "default", "allow", "outgoing"); err != nil {
 		return err
@@ -474,12 +513,15 @@ ignoreip = %s
 	return fmt.Errorf("служба защиты от подбора пароля не запустилась")
 }
 
-func leftoverPublicPorts(snap facts.Snapshot, already []int, proto string) []int {
+func leftoverPublicPorts(snap facts.Snapshot, already []int, proto string, skip []int) []int {
 	if proto == "" {
 		proto = "tcp"
 	}
 	have := map[int]bool{}
 	for _, p := range already {
+		have[p] = true
+	}
+	for _, p := range skip {
 		have[p] = true
 	}
 	var extra []int
@@ -494,6 +536,36 @@ func leftoverPublicPorts(snap facts.Snapshot, already []int, proto string) []int
 		extra = append(extra, p.Port)
 	}
 	return extra
+}
+
+func declinedPanelPorts(snap facts.Snapshot, allowPanel int) []int {
+	seen := map[int]bool{}
+	var out []int
+	for _, p := range snap.Panels {
+		if p.Port <= 0 || p.Port == allowPanel || seen[p.Port] {
+			continue
+		}
+		seen[p.Port] = true
+		out = append(out, p.Port)
+	}
+	return out
+}
+
+func withoutPorts(ports, skip []int) []int {
+	if len(skip) == 0 {
+		return ports
+	}
+	drop := map[int]bool{}
+	for _, p := range skip {
+		drop[p] = true
+	}
+	var out []int
+	for _, p := range ports {
+		if !drop[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func setupUnattended(alreadyOn bool) error {
@@ -550,6 +622,14 @@ func hideDatabases(ctx context.Context, snap facts.Snapshot, u *ui.IO, yes bool)
 			ok, _ := setConfigLine("/etc/mysql/mysql.conf.d/mysqld.cnf", "bind-address", "bind-address = 127.0.0.1")
 			return ok
 		}},
+		27017: {"MongoDB", "mongod", "sudo systemctl restart mongod", func() bool {
+			ok, _ := setConfigLine("/etc/mongod.conf", "bindIp", "  bindIp: 127.0.0.1")
+			return ok
+		}},
+		9200: {"Elasticsearch", "elasticsearch", "sudo systemctl restart elasticsearch", func() bool {
+			ok, _ := setConfigLine("/etc/elasticsearch/elasticsearch.yml", "network.host", "network.host: 127.0.0.1")
+			return ok
+		}},
 	}
 	seen := map[int]bool{}
 	for _, p := range snap.Ports {
@@ -565,12 +645,12 @@ func hideDatabases(ctx context.Context, snap facts.Snapshot, u *ui.IO, yes bool)
 			continue
 		}
 		if yes {
-			u.Println("Закрыл " + j.name + " в настройке. Чтобы применилось: " + j.hint)
+			u.Println("Записал " + j.name + " на localhost в файле. С улицы он ещё открыт, пока не сделаете: " + j.hint)
 			continue
 		}
 		okRestart, err := u.Confirm("Перезапущу " + j.name + ", чтобы закрыть его с улицы.\nЕсли сайт на этой базе — на секунды моргнёт.")
 		if err != nil || !okRestart {
-			u.Println("Настройку записал. Чтобы закрыть с улицы: " + j.hint)
+			u.Println("Настройку записал. С улицы ещё открыт, пока не сделаете: " + j.hint)
 			continue
 		}
 		if _, _, err := oscmd.Run(ctx, 20*time.Second, "systemctl", "restart", j.unit); err != nil {
@@ -599,7 +679,7 @@ func setConfigLine(path, key, replacement string) (bool, error) {
 			continue
 		}
 		k := trim
-		if j := strings.IndexAny(k, " \t="); j >= 0 {
+		if j := strings.IndexAny(k, " \t=:"); j >= 0 {
 			k = k[:j]
 		}
 		if strings.EqualFold(k, key) {
@@ -711,7 +791,7 @@ MaxAuthTries 6
 AllowUsers %s
 `, strings.Join(allow, " "))
 	if b, err := os.ReadFile(sshdDropin); err == nil && string(b) == body {
-		if sshEffectiveLocked(ctx) {
+		if sshEffectiveLocked(ctx) && allowUsersApplied(effectiveAllowUsers(ctx), allow) {
 			return nil
 		}
 	}
@@ -751,19 +831,59 @@ AllowUsers %s
 		_ = reloadSSH(ctx)
 		return fmt.Errorf("настройка SSH не применилась, вход не меняю")
 	}
+	if !allowUsersApplied(eff.AllowUsers, allow) {
+		_ = restoreSSHDropins(rollback)
+		_ = os.Remove(sshdDropin)
+		_ = reloadSSH(ctx)
+		return fmt.Errorf("список пользователей входа не применился, вход не меняю")
+	}
 	return nil
 }
 
 func sshEffectiveLocked(ctx context.Context) bool {
+	eff, err := effectiveSSH(ctx)
+	if err != nil {
+		return false
+	}
+	return !strings.EqualFold(eff.PasswordAuth, "yes") && !strings.EqualFold(eff.PermitRootLogin, "yes")
+}
+
+func effectiveSSH(ctx context.Context) (facts.SSHFact, error) {
 	out, _, err := oscmd.Run(ctx, 10*time.Second, "sshd", "-T")
 	if err != nil {
 		out, _, err = oscmd.Run(ctx, 10*time.Second, "/usr/sbin/sshd", "-T")
 	}
 	if err != nil {
+		return facts.SSHFact{}, err
+	}
+	return facts.ParseSSHDT(out), nil
+}
+
+func effectiveAllowUsers(ctx context.Context) []string {
+	eff, err := effectiveSSH(ctx)
+	if err != nil {
+		return nil
+	}
+	return eff.AllowUsers
+}
+
+func allowUsersApplied(got, want []string) bool {
+	if len(want) == 0 {
+		return true
+	}
+	if len(got) == 0 {
 		return false
 	}
-	eff := facts.ParseSSHDT(out)
-	return !strings.EqualFold(eff.PasswordAuth, "yes") && !strings.EqualFold(eff.PermitRootLogin, "yes")
+	have := map[string]bool{}
+	for _, n := range got {
+		have[strings.ToLower(n)] = true
+	}
+	for _, n := range want {
+		if !have[strings.ToLower(n)] {
+			return false
+		}
+	}
+	return true
 }
 
 func setupMotdWatch(ctx context.Context) error {
@@ -973,6 +1093,7 @@ func joinPorts(ports []int) string {
 
 func plannedKeep(st state.State, snap facts.Snapshot, panel int) []int {
 	keep := check.MergePorts(st.KeepPorts, check.ProjectPorts(snap))
+	keep = withoutPorts(keep, declinedPanelPorts(snap, panel))
 	if listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
 		keep = check.MergePorts(keep, []int{80, 443})
 	}
@@ -980,6 +1101,27 @@ func plannedKeep(st state.State, snap facts.Snapshot, panel int) []int {
 		keep = check.MergePorts(keep, []int{panel})
 	}
 	return keep
+}
+
+func passwordOnlyLogins(snap facts.Snapshot, admin string) []string {
+	var names []string
+	for _, u := range snap.Users {
+		if u.Name == admin || u.UID < 1000 || u.UID == 65534 {
+			continue
+		}
+		if u.HasKeys || nologinShell(u.Shell) || !validUnixUser(u.Name) {
+			continue
+		}
+		names = append(names, u.Name)
+	}
+	return names
+}
+
+func exitIfNotGreen(level string) int {
+	if level == "green" {
+		return 0
+	}
+	return 1
 }
 
 func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
@@ -1058,8 +1200,12 @@ func finishQuiet(_ context.Context, _ host.Info, u *ui.IO, st state.State, snap 
 	st.Motd = report.Motd(fs)
 	_ = state.Save(st)
 	saveScan(snap, fs)
-	audit.Event("protect", "ok", "unchanged")
+	if st.Level == "green" {
+		audit.Event("protect", "ok", "unchanged")
+	} else {
+		audit.Event("protect", "warn", "unchanged_"+st.Level)
+	}
 	u.Println("Проверил. Менять нечего.")
 	u.Print(ui.PaintFirstLine(report.StatusText(snap, fs, snap.Host.PublicIP, user), st.Level, u.Color))
-	return 0
+	return exitIfNotGreen(st.Level)
 }

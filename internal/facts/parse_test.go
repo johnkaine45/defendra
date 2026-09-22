@@ -3,10 +3,13 @@ package facts
 import "testing"
 
 func TestParseSSHDT(t *testing.T) {
-	in := "permitrootlogin yes\npasswordauthentication yes\nport 22\npubkeyauthentication yes\npermitemptypasswords no\n"
+	in := "permitrootlogin yes\npasswordauthentication yes\nport 22\npubkeyauthentication yes\npermitemptypasswords no\nallowusers admin deploy\n"
 	f := ParseSSHDT(in)
 	if f.PermitRootLogin != "yes" || f.PasswordAuth != "yes" {
 		t.Fatalf("%+v", f)
+	}
+	if len(f.AllowUsers) != 2 || f.AllowUsers[0] != "admin" || f.AllowUsers[1] != "deploy" {
+		t.Fatalf("allowusers %+v", f.AllowUsers)
 	}
 }
 

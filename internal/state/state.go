@@ -58,7 +58,11 @@ func Load() State {
 			for _, line := range strings.Split(string(b), "\n") {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "AllowUsers ") {
-					s.User = strings.TrimSpace(strings.TrimPrefix(line, "AllowUsers "))
+					fields := strings.Fields(strings.TrimPrefix(line, "AllowUsers "))
+					if len(fields) > 0 {
+						s.User = fields[0]
+						s.SSHUsers = fields
+					}
 				}
 			}
 			break
@@ -90,7 +94,7 @@ func Save(s State) error {
 	if err := os.WriteFile(Path(), b, 0640); err != nil {
 		return err
 	}
-	_ = os.WriteFile(SummaryPath(), b, 0644)
+	_ = os.WriteFile(SummaryPath(), b, 0640)
 	if s.Motd != "" {
 		_ = os.WriteFile(MotdPath(), []byte(s.Motd+"\n"), 0644)
 	}
@@ -99,6 +103,8 @@ func Save(s State) error {
 			gid, _ := strconv.Atoi(u.Gid)
 			_ = os.Chown(Path(), 0, gid)
 			_ = os.Chmod(Path(), 0640)
+			_ = os.Chown(SummaryPath(), 0, gid)
+			_ = os.Chmod(SummaryPath(), 0640)
 		}
 	}
 	_ = os.Chmod(Dir, 0755)

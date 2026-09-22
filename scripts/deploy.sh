@@ -50,6 +50,7 @@ install -m 0755 "$HOME_ADMIN/defendra-upload" /usr/bin/defendra
 install -m 0755 "$HOME_ADMIN/defendra-upload" /usr/local/bin/defendra
 rm -f "$HOME_ADMIN/defendra-upload" /tmp/defendra
 chmod 0755 /var/lib/defendra 2>/dev/null || true
-chmod 0644 /var/lib/defendra/summary.json /var/lib/defendra/motd.txt 2>/dev/null || true
+chmod 0640 /var/lib/defendra/summary.json 2>/dev/null || true
+chmod 0644 /var/lib/defendra/motd.txt 2>/dev/null || true
 defendra version
 SCRIPT
