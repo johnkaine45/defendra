@@ -157,7 +157,7 @@ func NeedSudo(cmd string) string {
 }
 
 func NotUbuntu(pretty string) string {
-	return "Defendra пока умеет только Ubuntu 22.04 и 24.04.\nСейчас на этой машине: " + pretty + ".\nСтавить защиту сюда нельзя — можно сломать вход.\n"
+	return "Defendra пока умеет только Ubuntu 22.04, 24.04 и 26.04.\nСейчас на этой машине: " + pretty + ".\nСтавить защиту сюда нельзя — можно сломать вход.\n"
 }
 
 func UnknownCommand() string {

@@ -54,11 +54,47 @@ func lock() (*os.File, error) {
 }
 
 func sshService(ctx context.Context) string {
-	out, _, _ := oscmd.Run(ctx, 5*time.Second, "systemctl", "is-enabled", "ssh")
-	if strings.TrimSpace(out) != "" && !strings.Contains(out, "not-found") {
-		return "ssh"
+	for _, name := range []string{"ssh", "sshd"} {
+		out, _, _ := oscmd.Run(ctx, 5*time.Second, "systemctl", "is-active", name)
+		if strings.TrimSpace(out) == "active" {
+			return name
+		}
 	}
-	return "sshd"
+	return "ssh"
+}
+
+func ensureSSHListener(ctx context.Context) {
+	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "unmask", "ssh.socket")
+	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "enable", "ssh.socket")
+	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "start", "ssh.socket")
+	out, _, _ := oscmd.Run(ctx, 5*time.Second, "systemctl", "is-active", "ssh.socket")
+	if strings.TrimSpace(out) != "active" {
+		_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "start", "ssh")
+		_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "start", "sshd")
+	}
+}
+
+func armSSHWatchdog(ctx context.Context) {
+	if err := os.MkdirAll(state.Dir, 0755); err != nil {
+		return
+	}
+	body := `#!/bin/bash
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  sleep 2
+  if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -qE ':22$'; then
+    exit 0
+  fi
+  systemctl start ssh.socket >/dev/null 2>&1 || true
+  systemctl start ssh >/dev/null 2>&1 || true
+  systemctl start sshd >/dev/null 2>&1 || true
+done
+`
+	path := filepath.Join(state.Dir, "ssh-watchdog.sh")
+	if err := writeFile(path, body, 0700); err != nil {
+		return
+	}
+	_, _, _ = oscmd.Run(ctx, 8*time.Second, "systemctl", "reset-failed", "defendra-ssh-watchdog.service")
+	_, _, _ = oscmd.Run(ctx, 8*time.Second, "systemd-run", "--unit=defendra-ssh-watchdog", "--collect", "/bin/bash", path)
 }
 
 func writeFile(path, body string, mode os.FileMode) error {
@@ -106,6 +142,7 @@ func reloadSSH(ctx context.Context) error {
 		return fmt.Errorf("конфиг входа сломан: %s %s", out, errOut)
 	}
 	_, _, err = oscmd.Run(ctx, 15*time.Second, "systemctl", "reload", svc)
+	ensureSSHListener(ctx)
 	return err
 }
 

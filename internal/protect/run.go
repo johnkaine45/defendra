@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/johnkaine/defendra/internal/audit"
@@ -180,6 +182,7 @@ Enter, если спросит перезаписать — напишите n (
 		return 2
 	}
 	defer lk.Close()
+	signal.Ignore(syscall.SIGHUP)
 	audit.Event("protect", "start", "")
 
 	_ = backup.Rotate()
@@ -226,6 +229,7 @@ Enter, если спросит перезаписать — напишите n (
 			u.Println("SSH и фильтр не трогаю.")
 			return 2
 		}
+		ensureSSHListener(ctx)
 	}
 
 	if st.HasProtect {
@@ -233,6 +237,7 @@ Enter, если спросит перезаписать — напишите n (
 	} else {
 		u.Progress(3, total, "Включаю фильтр входящих подключений…")
 	}
+	armSSHWatchdog(ctx)
 	if err := setupUFW(ctx, snap.Host.SSHPort, snap, allowPanel, keep); err != nil {
 		u.Printf("Не получилось включить фильтр: %v\nSSH не закрываю.\n", err)
 		return 2
@@ -270,6 +275,8 @@ Enter, если спросит перезаписать — напишите n (
 			locked = true
 		}
 	}
+
+	ensureSSHListener(ctx)
 
 	u.Progress(9, total, "Сохраняю памятку…")
 	_ = hardenPerms()
@@ -393,7 +400,11 @@ func printPasswordBox(u *ui.IO, pw string) {
 }
 
 func aptInstall(ctx context.Context) error {
-	env := append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	env := append(os.Environ(),
+		"DEBIAN_FRONTEND=noninteractive",
+		"NEEDRESTART_MODE=l",
+		"NEEDRESTART_SUSPEND=1",
+	)
 	run := func(args ...string) error {
 		cctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
@@ -417,7 +428,7 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 	}
 	cur, _, _ := oscmd.Run(ctx, 10*time.Second, "ufw", "status", "verbose")
 	have := facts.ParseUFW(cur)
-	want := check.MergePorts([]int{sshPort}, keep)
+	want := check.MergePorts([]int{sshPort, 22}, keep)
 	if listening(snap, 80) || listening(snap, 443) {
 		want = check.MergePorts(want, []int{80, 443})
 	}
@@ -457,10 +468,12 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 		}
 	}
 	if !have.Active {
+		_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "allow", "OpenSSH")
 		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "--force", "enable"); err != nil {
 			return err
 		}
 	}
+	ensureSSHListener(ctx)
 	out, _, _ := oscmd.Run(ctx, 10*time.Second, "ufw", "status")
 	if !strings.Contains(strings.ToLower(out), "status: active") {
 		return fmt.Errorf("фильтр не включился")

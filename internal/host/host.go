@@ -36,7 +36,7 @@ func Detect() Info {
 	}
 	info.ID = osr["ID"]
 	info.VersionID = osr["VERSION_ID"]
-	info.UbuntuOK = info.ID == "ubuntu" && (info.VersionID == "22.04" || info.VersionID == "24.04")
+	info.UbuntuOK = ubuntuSupported(info.ID, info.VersionID)
 	info.Desktop = lookDesktop()
 	info.SSHClient, info.SSHPort = sshConn()
 	return info
@@ -172,4 +172,16 @@ func kernel() string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func ubuntuSupported(id, versionID string) bool {
+	if id != "ubuntu" {
+		return false
+	}
+	switch versionID {
+	case "22.04", "24.04", "26.04":
+		return true
+	default:
+		return false
+	}
 }

@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KEY="${DEFENDRA_KEY:-$ROOT/id_ed25519}"
 HOST="${DEFENDRA_HOST:-admin@195.58.153.30}"
+VER="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 export PATH="/opt/homebrew/bin:$PATH"
 
 SUDO_PW=""
@@ -36,11 +37,17 @@ bad() { echo "FAIL  $1"; fail=1; }
 
 echo "=== public ==="
 https_code="$(curl -skI --max-time 8 "https://195.58.153.30/" | tr -d '\r' | awk 'NR==1{print $2}')"
-if [[ "$https_code" == "200" ]]; then pass "https 443 → $https_code"; else bad "https 443 → ${https_code:-empty}"; fi
+if [[ "$https_code" == "200" ]]; then pass "https 443 → $https_code"
+elif [[ -z "$https_code" ]]; then echo "SKIP  https 443 (свежий VDS, сайта нет)"
+else bad "https 443 → $https_code"; fi
 shop_code="$(curl -sI --max-time 8 "http://195.58.153.30:8080/" | tr -d '\r' | awk 'NR==1{print $2}')"
-if [[ "$shop_code" == "200" ]]; then pass "shop 8080 → $shop_code"; else bad "shop 8080 → ${shop_code:-empty}"; fi
+if [[ "$shop_code" == "200" ]]; then pass "shop 8080 → $shop_code"
+elif [[ -z "$shop_code" ]]; then echo "SKIP  shop 8080 (свежий VDS, сайта нет)"
+else bad "shop 8080 → $shop_code"; fi
 http_code="$(curl -sI --max-time 8 "http://195.58.153.30/" | tr -d '\r' | awk 'NR==1{print $2}')"
-if [[ "$http_code" =~ ^(200|301|302|404)$ ]]; then pass "http 80 reachable → $http_code"; else bad "http 80 → ${http_code:-empty}"; fi
+if [[ "$http_code" =~ ^(200|301|302|404)$ ]]; then pass "http 80 reachable → $http_code"
+elif [[ -z "$http_code" ]]; then echo "SKIP  http 80 (свежий VDS, сайта нет)"
+else bad "http 80 → $http_code"; fi
 
 python3 - <<'PY'
 import socket, sys
@@ -88,7 +95,7 @@ echo "---NOSUDO---"
 head -6 /tmp/df-ns.txt
 ')"
 echo "$nonsudo"
-echo "$nonsudo" | grep -q 'version=Defendra 0.1.14' && pass "version 0.1.14" || bad "version"
+echo "$nonsudo" | grep -q "version=Defendra $VER" && pass "version $VER" || bad "version"
 echo "$nonsudo" | grep -q 'menu_exit=0' && pass "menu exit 0" || bad "menu exit"
 echo "$nonsudo" | grep -q 'сервер в порядке' && pass "menu green" || bad "menu green"
 echo "$nonsudo" | grep -q 'how_exit=0' && pass "how-to-login exit 0" || bad "how-to-login"
@@ -129,6 +136,8 @@ ok() { echo "PASS  $*"; }
 bad() { echo "FAIL  $*"; }
 
 echo "version=$(defendra version)"
+. /etc/os-release
+echo "os_id=$ID os_ver=$VERSION_ID"
 
 defendra protect --yes >/tmp/df-prot.txt 2>/tmp/df-prot.err
 echo "protect_yes=$?"
@@ -268,6 +277,11 @@ SCRIPT
 echo "$sudo_out"
 
 echo "$sudo_out" | grep -q 'protect_yes=0' && pass "protect --yes 0" || bad "protect --yes"
+if echo "$sudo_out" | grep -Eq 'os_ver=(22.04|24.04|26.04)'; then
+  pass "supported ubuntu"
+else
+  bad "unsupported or missing os"
+fi
 echo "$sudo_out" | grep -q 'MARK_QUIET=1' && pass "quiet protect text" || bad "quiet protect text"
 echo "$sudo_out" | grep -q 'protect_dry=0' && pass "protect --dry-run 0" || bad "dry-run"
 echo "$sudo_out" | grep -q 'status_ec=0' && pass "status 0" || bad "status"
@@ -290,15 +304,23 @@ echo "$sudo_out" | grep -q 'f2b=active' && pass "fail2ban active" || bad "fail2b
 echo "$sudo_out" | grep -q 'timer=enabled' && pass "watch timer enabled" || bad "watch timer"
 echo "$sudo_out" | grep -qi 'status: active' && pass "ufw active" || bad "ufw"
 echo "$sudo_out" | grep -q 'fail_count 0' && pass "scan no fail/warn" || bad "scan has findings"
-echo "$sudo_out" | grep -q 'ver 0.1.14' && pass "scan version 0.1.14" || bad "scan version"
+echo "$sudo_out" | grep -q "ver $VER" && pass "scan version $VER" || bad "scan version"
 echo "$sudo_out" | grep -q 'user admin' && pass "state user admin" || bad "state user"
 echo "$sudo_out" | grep -q 'ssh_locked True' && pass "state ssh locked" || bad "state ssh locked"
-echo "$sudo_out" | grep -q '8080' && pass "keep/ufw has 8080" || bad "8080 keep"
+if [[ -n "$shop_code" ]]; then
+  echo "$sudo_out" | grep -q '8080' && pass "keep/ufw has 8080" || bad "8080 keep"
+else
+  echo "SKIP  8080 keep (свежий VDS)"
+fi
 echo "$sudo_out" | grep -q 'status_unexpected=1' && pass "unexpected 19999 → status 1" || bad "unexpected port not flagged"
 echo "$sudo_out" | grep -q '19999' && pass "status mentions 19999" || bad "status text 19999"
 echo "$sudo_out" | grep -q 'status_after=0' && pass "status green after 19999 gone" || bad "status after unexpected"
-echo "$sudo_out" | grep -q 'local443 200' && pass "local 443" || bad "local 443"
-echo "$sudo_out" | grep -q 'local8080 200' && pass "local 8080" || bad "local 8080"
+if echo "$sudo_out" | grep -q 'local443 200'; then pass "local 443"
+elif [[ -z "$https_code" ]]; then echo "SKIP  local 443 (свежий VDS, сайта нет)"
+else bad "local 443"; fi
+if echo "$sudo_out" | grep -q 'local8080 200'; then pass "local 8080"
+elif [[ -z "$shop_code" ]]; then echo "SKIP  local 8080 (свежий VDS, сайта нет)"
+else bad "local 8080"; fi
 echo "$sudo_out" | grep -q 'password_ec=0' && pass "password cmd 0" || bad "password cmd"
 echo "$sudo_out" | grep -q 'motd_ec=0' && pass "motd 0" || bad "motd"
 

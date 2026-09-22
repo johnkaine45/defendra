@@ -12,7 +12,7 @@
 <p align="center">
   <img alt="Релиз" src="https://img.shields.io/github/v/release/johnkaine45/defendra?color=10b981">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.23-00ADD8?logo=go&logoColor=white">
-  <img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-22.04%20%2F%2024.04-E95420?logo=ubuntu&logoColor=white">
+  <img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-22.04%20%2F%2024.04%20%2F%2026.04-E95420?logo=ubuntu&logoColor=white">
   <img alt="Лицензия" src="https://img.shields.io/badge/license-MIT-64748b">
   <img alt="CI" src="https://github.com/johnkaine45/defendra/actions/workflows/ci.yml/badge.svg">
 </p>
@@ -48,7 +48,7 @@ sudo defendra protect
 
 ## Как поставить
 
-Нужен Ubuntu 22.04 или 24.04, amd64. Команды — **на сервере**, кроме входа по SSH.
+Нужен Ubuntu 22.04, 24.04 или 26.04, amd64. Команды — **на сервере**, кроме входа по SSH.
 
 **1.** Войдите с компьютера (пароль из письма хостера, буквы не печатаются):
 

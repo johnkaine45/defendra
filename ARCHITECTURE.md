@@ -193,7 +193,7 @@ print how-to-login + ритуал второго окна, если SSH закр
 - Unit: парсеры sshd, ufw status, ss, каталог check на фикстурах из `testdata/facts`.
 - Gates: нет ключа → шаг SSH не входит в apply.
 - Protect dry-run на фикстурах не вызывает `exec`.
-- Integration (Makefile `test-vm`): cloud-init VM Ubuntu 24.04. Сценарии из SPEC §14, плюс: root не `L` в `passwd -S`; allow-site открывает только 80/443. Без VM в CI можно пропускать тег `integration`.
+- Integration (Makefile `test-vm`): cloud-init VM Ubuntu 24.04 или живая лаба 22.04/24.04/26.04. Сценарии из SPEC §14, плюс: root не `L` в `passwd -S`; allow-site открывает только 80/443. Без VM в CI можно пропускать тег `integration`.
 
 Не тестировать на машине разработчика с настоящим sshd.
 
