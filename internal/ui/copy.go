@@ -48,6 +48,7 @@ func Help() string {
   Если не выходит: консоль в панели хостера (VNC / «консоль в браузере»),
   пароль root ИЗ ПИСЬМА хостера (буквы не видны — так и надо),
   затем: sudo defendra undo
+  Дальше с компьютера: ssh admin@IP с ключом. Root по SSH не открываем.
 
 Буквы пароля не печатаются
   Так и должно быть. Вводите вслепую и нажмите Enter.
@@ -87,9 +88,12 @@ func Help() string {
   Termius: тот же ключ, хост admin@IP.
 
 Поставить Defendra
-  curl или wget, файл .deb, потом:
+  На сервере:
+    curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
     sudo apt install ./defendra.deb
-  Нет curl: sudo apt install curl
+  Нет curl:
+    wget -O defendra.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
+    sudo apt install ./defendra.deb
   Процессор ARM (uname -m пишет aarch64): нужен defendra_arm64.deb
 
 Не выключайте фильтр входящих подключений.
@@ -132,7 +136,8 @@ func HowToLogin(ip, user string, sshLocked bool) string {
 2. Найдите «консоль», «VNC», «KVM», «browser console».
 3. Войдите как root, пароль ИЗ ПИСЬМА хостера (буквы снова не видны).
 4. Выполните:  sudo defendra undo
-5. Снова:     ssh root@` + ip + `   с паролем из письма
+5. С компьютера:  ssh ` + user + `@` + ip + `   с того компьютера, где ключ.
+   Root по SSH после защиты закрыт — так и задумано. Вы уже в консоли хостера, сервер не потерян.
 `
 	return body
 }

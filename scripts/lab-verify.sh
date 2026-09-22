@@ -88,11 +88,12 @@ echo "---NOSUDO---"
 head -6 /tmp/df-ns.txt
 ')"
 echo "$nonsudo"
-echo "$nonsudo" | grep -q 'version=Defendra 0.1.13' && pass "version 0.1.13" || bad "version"
+echo "$nonsudo" | grep -q 'version=Defendra 0.1.14' && pass "version 0.1.14" || bad "version"
 echo "$nonsudo" | grep -q 'menu_exit=0' && pass "menu exit 0" || bad "menu exit"
 echo "$nonsudo" | grep -q 'сервер в порядке' && pass "menu green" || bad "menu green"
 echo "$nonsudo" | grep -q 'how_exit=0' && pass "how-to-login exit 0" || bad "how-to-login"
 echo "$nonsudo" | grep -q 'ssh admin@' && pass "how-to-login admin" || bad "how-to-login user"
+if echo "$nonsudo" | grep -q 'ssh root@'; then bad "how-to-login promised root SSH"; fi
 if echo "$nonsudo" | grep -q 'ssh admin@admin'; then bad "how-to-login doubled user"; fi
 echo "$nonsudo" | grep -q 'unk_exit=2' && pass "unknown cmd 2" || bad "unknown cmd"
 echo "$nonsudo" | grep -q 'nosudo_protect=2' && pass "protect without sudo → 2" || bad "protect without sudo"
@@ -160,6 +161,11 @@ defendra allow-site --yes >/tmp/df-as.txt
 echo "allow_yes=$?"
 echo "---ALLOW---"
 cat /tmp/df-as.txt
+
+defendra undo --dry-run >/tmp/df-undo-dry.txt
+echo "undo_dry=$?"
+echo "---UNDODRY---"
+cat /tmp/df-undo-dry.txt
 
 defendra explain SSH-PASSWORD >/tmp/df-ex.txt
 echo "explain_pw=$?"
@@ -269,6 +275,8 @@ echo "$sudo_out" | grep -q 'Defendra • порядок' && pass "status green" 
 echo "$sudo_out" | grep -q 'scan_ec=0' && pass "scan json 0" || bad "scan"
 echo "$sudo_out" | grep -q 'watch_ec=0' && pass "watch 0" || bad "watch"
 echo "$sudo_out" | grep -q 'allow_yes=0' && pass "allow-site --yes 0" || bad "allow-site"
+echo "$sudo_out" | grep -q 'undo_dry=0' && pass "undo --dry-run 0" || bad "undo dry-run"
+echo "$sudo_out" | grep -q 'Ничего не меняю' && pass "undo dry-run text" || true
 echo "$sudo_out" | grep -q 'explain_pw=0' && pass "explain SSH-PASSWORD" || bad "explain pw"
 echo "$sudo_out" | grep -q 'explain_miss=1' && pass "explain unknown 1" || bad "explain unknown"
 echo "$sudo_out" | grep -q 'protect_notty=2' && pass "protect no-tty → 2" || bad "protect no-tty"
@@ -277,11 +285,12 @@ echo "$sudo_out" | grep -q 'permitrootlogin no' && pass "sshd root no" || bad "s
 echo "$sudo_out" | grep -q 'allowusers admin' && pass "sshd AllowUsers admin" || bad "sshd AllowUsers"
 echo "$sudo_out" | grep -q '640 /var/lib/defendra/summary.json' && pass "summary 0640" || bad "summary perms"
 echo "$sudo_out" | grep -q '600 /var/lib/defendra/first-login.txt' && pass "first-login 0600" || bad "first-login perms"
+echo "$sudo_out" | grep -q '640 /etc/fail2ban/jail.d/defendra.conf' && pass "jail 0640" || bad "jail perms"
 echo "$sudo_out" | grep -q 'f2b=active' && pass "fail2ban active" || bad "fail2ban"
 echo "$sudo_out" | grep -q 'timer=enabled' && pass "watch timer enabled" || bad "watch timer"
 echo "$sudo_out" | grep -qi 'status: active' && pass "ufw active" || bad "ufw"
 echo "$sudo_out" | grep -q 'fail_count 0' && pass "scan no fail/warn" || bad "scan has findings"
-echo "$sudo_out" | grep -q 'ver 0.1.13' && pass "scan version 0.1.13" || bad "scan version"
+echo "$sudo_out" | grep -q 'ver 0.1.14' && pass "scan version 0.1.14" || bad "scan version"
 echo "$sudo_out" | grep -q 'user admin' && pass "state user admin" || bad "state user"
 echo "$sudo_out" | grep -q 'ssh_locked True' && pass "state ssh locked" || bad "state ssh locked"
 echo "$sudo_out" | grep -q '8080' && pass "keep/ufw has 8080" || bad "8080 keep"

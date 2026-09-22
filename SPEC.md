@@ -54,7 +54,7 @@ Defendra **не** делает сервер неуязвимым и **не** о�
 Новичок не собирает проект. В README и на странице релиза один и тот же копипаст. URL и имя файла появятся вместе с первым релизом; смысл команд не меняется:
 
 ```text
-curl -fsSL https://github.com/<org>/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
 sudo apt install ./defendra.deb
 ```
 
@@ -68,7 +68,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.14_amd64.deb`. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
 
 ## 4. Как это выглядит для пользователя
 

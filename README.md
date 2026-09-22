@@ -56,14 +56,21 @@ sudo defendra protect
 ssh root@СЮДА_IP_ИЗ_ПИСЬМА
 ```
 
-**2.** Поставьте пакет:
+**2.** Поставьте пакет **на сервере**:
 
 ```bash
 curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
 sudo apt install ./defendra.deb
 ```
 
-Нет `curl`? `sudo apt install curl` и повторите. Процессор ARM (`uname -m` пишет `aarch64`) — файл `defendra_arm64.deb`.
+Нет `curl`:
+
+```bash
+wget -O defendra.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
+sudo apt install ./defendra.deb
+```
+
+Процессор ARM (`uname -m` пишет `aarch64`) — в ссылке `defendra_arm64.deb`. Проверить файл: рядом лежит `defendra_amd64.deb.sha256`.
 
 **3.** Включите защиту:
 

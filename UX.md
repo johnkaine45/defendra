@@ -60,7 +60,7 @@ ssh root@СЮДА_IP_ИЗ_ПИСЬМА
 ### 3.2 Установка (уже на сервере)
 
 ```text
-curl -fsSL https://github.com/<org>/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
 sudo apt install ./defendra.deb
 ```
 
@@ -426,7 +426,8 @@ Defendra узнаёт что может; остальное — тексты в 
 2. Найдите «консоль», «VNC», «KVM», «browser console».
 3. Войдите как root, пароль ИЗ ПИСЬМА хостера (буквы снова не видны).
 4. Выполните:  sudo defendra undo
-5. Снова:     ssh root@IP   с паролем из письма
+5. С компьютера: ssh admin@IP  с того компьютера, где ключ.
+   Root по SSH после защиты закрыт. Вы уже в консоли хостера — сервер не потерян.
 ```
 
 Не писать «KVM гипервизор». «Консоль в браузере у хостера» — главный термин.

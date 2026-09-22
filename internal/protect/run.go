@@ -490,7 +490,7 @@ findtime = 10m
 bantime = 1h
 ignoreip = %s
 `, ignore)
-	changed, err := writeIfChanged(fail2banJail, body, 0644)
+	changed, err := writeIfChanged(fail2banJail, body, 0640)
 	if err != nil {
 		return err
 	}
@@ -738,6 +738,7 @@ func hardenPerms() error {
 		_ = os.Chmod("/etc/ssh/sshd_config", 0644)
 	}
 	_ = os.Chmod(firstLogin, 0600)
+	_ = os.Chmod(fail2banJail, 0640)
 	_ = os.Chmod(sshdDropin, 0644)
 	if p, err := os.Executable(); err == nil {
 		_ = os.Chmod(p, 0755)
@@ -977,13 +978,17 @@ func AllowSite(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	return 0
 }
 
-func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes bool) int {
-	if yes {
+func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
+	if yes || dry {
 		u.NoPrompt = true
 	}
 	if !backup.HasLast() {
 		u.Println("Нечего откатывать. Снимка последней настройки нет.")
 		return 2
+	}
+	if dry {
+		u.Println("Ничего не меняю (только показ). Вернул бы настройки входа и фильтра как до последней команды protect.")
+		return 0
 	}
 	ok, err := u.Confirm("Верну настройки входа и фильтра как до последней команды protect.")
 	if err != nil || !ok {

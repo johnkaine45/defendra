@@ -16,6 +16,14 @@ import (
 )
 
 func Collect(ctx context.Context, hi host.Info) Snapshot {
+	return collect(ctx, hi, false)
+}
+
+func CollectFull(ctx context.Context, hi host.Info) Snapshot {
+	return collect(ctx, hi, true)
+}
+
+func collect(ctx context.Context, hi host.Info, extra bool) Snapshot {
 	s := Snapshot{
 		CollectedAt: time.Now().UTC(),
 		Host: HostFact{
@@ -47,7 +55,9 @@ func Collect(ctx context.Context, hi host.Info) Snapshot {
 	s.Panels = detectPanels(s.Ports)
 	s.Perms = collectPerms(s.Users)
 	s.Sudo = collectSudo()
-	s.SUID = collectSUID(ctx)
+	if extra {
+		s.SUID = collectSUID(ctx)
+	}
 	return s
 }
 

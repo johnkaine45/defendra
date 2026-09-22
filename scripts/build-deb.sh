@@ -46,7 +46,9 @@ Description: защита свежего Ubuntu VDS одной командой
  После установки: sudo defendra protect
 EOF
 python3 "$ROOT/scripts/pack-deb.py" "$PKG" "$ROOT/dist/defendra_${VER}_${ARCH}.deb"
+cp "$ROOT/dist/defendra_${VER}_${ARCH}.deb" "$ROOT/dist/defendra_${ARCH}.deb"
 ( cd "$ROOT/dist" && shasum -a 256 "defendra_${VER}_${ARCH}.deb" > "defendra_${VER}_${ARCH}.deb.sha256" )
-echo "собрано dist/defendra_${VER}_${ARCH}.deb"
-ls -l "dist/defendra_${VER}_${ARCH}.deb"
-cat "dist/defendra_${VER}_${ARCH}.deb.sha256"
+( cd "$ROOT/dist" && shasum -a 256 "defendra_${ARCH}.deb" > "defendra_${ARCH}.deb.sha256" )
+echo "собрано dist/defendra_${VER}_${ARCH}.deb  (ещё dist/defendra_${ARCH}.deb для latest/download)"
+ls -l "dist/defendra_${VER}_${ARCH}.deb" "dist/defendra_${ARCH}.deb"
+cat "dist/defendra_${ARCH}.deb.sha256"

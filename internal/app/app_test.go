@@ -60,4 +60,20 @@ func TestHelpCopy(t *testing.T) {
 	if strings.Contains(h, "ufw disable") || strings.Contains(h, "ufw reset") {
 		t.Fatal(h)
 	}
+	if !strings.Contains(h, "wget -O defendra.deb") {
+		t.Fatal("help missing wget")
+	}
+	if strings.Contains(h, "ssh root@") {
+		t.Fatal("help should not send people to ssh root after protect")
+	}
+}
+
+func TestHowToLoginRescue(t *testing.T) {
+	s := ui.HowToLogin("203.0.113.10", "admin", true)
+	if !strings.Contains(s, "ssh admin@203.0.113.10") {
+		t.Fatal(s)
+	}
+	if strings.Contains(s, "ssh root@") {
+		t.Fatal("rescue promised root SSH")
+	}
 }

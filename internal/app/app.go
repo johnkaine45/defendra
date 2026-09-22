@@ -95,7 +95,7 @@ Defendra для облачного сервера. Здесь запускать
 	case "allow-site":
 		return protect.AllowSite(ctx, hi, u, flags.yes, flags.dry)
 	case "undo":
-		code := protect.Undo(ctx, hi, u, flags.yes)
+		code := protect.Undo(ctx, hi, u, flags.yes, flags.dry)
 		audit.Event("undo", exitWord(code), "")
 		return code
 	case "watch":
@@ -190,7 +190,12 @@ func parse(args []string) (string, flags) {
 
 func cmdStatus(ctx context.Context, hi host.Info, u *ui.IO, asJSON bool) int {
 	st := state.Load()
-	snap := facts.Collect(ctx, hi)
+	var snap facts.Snapshot
+	if asJSON {
+		snap = facts.CollectFull(ctx, hi)
+	} else {
+		snap = facts.Collect(ctx, hi)
+	}
 	fs := check.Run(snap, st.SiteAllowed, st.HasProtect, st.KeepPorts)
 	doc := report.Build(snap, fs)
 	_ = os.MkdirAll(state.ScansDir(), 0700)
