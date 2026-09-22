@@ -66,6 +66,9 @@ func TestHelpCopy(t *testing.T) {
 	if !strings.Contains(h, "sha256sum -c defendra_amd64.deb.sha256") {
 		t.Fatal("help missing checksum")
 	}
+	if !strings.Contains(h, "sudo defendra update") {
+		t.Fatal("help missing update")
+	}
 	if strings.Contains(h, "ssh root@") {
 		t.Fatal("help should not send people to ssh root after protect")
 	}

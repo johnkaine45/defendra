@@ -100,6 +100,17 @@ ssh admin@СЮДА_IP
 sudo defendra allow-site
 ```
 
+## Как обновить
+
+На уже закрытом сервере:
+
+```bash
+ssh admin@СЮДА_IP
+sudo defendra update
+```
+
+Программа сама скачает новую версию, проверит файл и поставит. Вход и сайт не сбросятся. Если новее нет — так и скажет. Потом можно `sudo defendra protect` — на закрытом сервере это «проверил, менять нечего».
+
 ## Как выглядит статус
 
 <p align="center">
@@ -118,6 +129,7 @@ sudo defendra allow-site
 | `sudo defendra protect` | Настроить или дожать защиту |
 | `sudo defendra status` | Всё ли в порядке |
 | `sudo defendra allow-site` | Открыть сайту 80 и 443 |
+| `sudo defendra update` | Новая версия программы |
 | `sudo defendra undo` | Откатить последний protect |
 | `defendra how-to-login` | Как заходить, два пароля, консоль хостера |
 | `defendra help` | FAQ: не вхожу, забыли пароль, нет сайта |

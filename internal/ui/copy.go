@@ -30,6 +30,7 @@ func MenuAfter(level string) string {
 		body += "  sudo defendra protect        дожать защиту\n"
 	}
 	body += `  sudo defendra allow-site     открыть сайт (порты 80 и 443)
+  sudo defendra update         новая версия программы
   defendra how-to-login        как заходить
   defendra help                если не входит, нет сайта, забыли пароль
 `
@@ -77,6 +78,12 @@ func Help() string {
   Часто это Docker: контейнер сам пробросил порт наружу.
   Defendra контейнер не трогает. Уберите проброс или слушайте
   только на сервере. Команда: sudo defendra status
+
+Как обновить
+  На сервере:
+    sudo defendra update
+  Программа сама скачает новую версию, проверит файл и поставит.
+  Вход и сайт не сбросятся. Старую не ставит.
 
 protect --yes не закрыл пароль SSH
   Есть другой пользователь, который входит только по паролю.

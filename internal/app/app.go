@@ -17,6 +17,7 @@ import (
 	"github.com/johnkaine/defendra/internal/report"
 	"github.com/johnkaine/defendra/internal/state"
 	"github.com/johnkaine/defendra/internal/ui"
+	"github.com/johnkaine/defendra/internal/update"
 )
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -46,7 +47,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	hi := host.Detect()
 
-	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password"
+	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update"
 	if needRoot {
 		if !hi.Root {
 			u.Print(ui.NeedSudo(cmd))
@@ -56,7 +57,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			u.Print(ui.NotUbuntu(hi.Pretty))
 			return 2
 		}
-		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site"
+		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "update"
 		if asks && !flags.yes && !flags.dry && !isTTY(stdin) {
 			u.Println("Без окна терминала Defendra сама не спрашивает. Напишите:\n\n  sudo defendra " + cmd + " --yes")
 			return 2
@@ -115,6 +116,10 @@ Defendra для облачного сервера. Здесь запускать
 	case "password":
 		code := protect.ShowPassword(u)
 		audit.Event("password", exitWord(code), "")
+		return code
+	case "update":
+		code := update.Run(ctx, update.Options{Yes: flags.yes, DryRun: flags.dry, UI: u})
+		audit.Event("update", exitWord(code), "")
 		return code
 	default:
 		u.Print(ui.UnknownCommand())

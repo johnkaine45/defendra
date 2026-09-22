@@ -85,6 +85,7 @@ echo "help_exit=$(defendra help >/tmp/df-help.txt; echo $?)"
 echo "how_exit=$(defendra how-to-login >/tmp/df-how.txt; echo $?)"
 echo "unk_exit=$(defendra nope >/tmp/df-unk.txt; echo $?; true)"
 echo "nosudo_protect=$(defendra protect --yes >/tmp/df-ns.txt 2>&1; echo $?)"
+echo "nosudo_update=$(defendra update --yes >/tmp/df-nsu.txt 2>&1; echo $?)"
 echo "---MENU---"
 cat /tmp/df-menu.txt
 echo "---HELP---"
@@ -104,6 +105,7 @@ if echo "$nonsudo" | grep -q 'ssh root@'; then bad "how-to-login promised root S
 if echo "$nonsudo" | grep -q 'ssh admin@admin'; then bad "how-to-login doubled user"; fi
 echo "$nonsudo" | grep -q 'unk_exit=2' && pass "unknown cmd 2" || bad "unknown cmd"
 echo "$nonsudo" | grep -q 'nosudo_protect=2' && pass "protect without sudo → 2" || bad "protect without sudo"
+echo "$nonsudo" | grep -q 'nosudo_update=2' && pass "update without sudo → 2" || bad "update without sudo"
 if echo "$nonsudo" | grep -Eiq 'ufw|fail2ban|sshd|jail'; then
   # help/menu should not teach ufw disable; internal words in errors are still bad in UI
   if echo "$nonsudo" | grep -Eiq 'ufw disable|ufw reset|fail2ban|jail'; then
@@ -176,6 +178,16 @@ defendra undo --dry-run >/tmp/df-undo-dry.txt
 echo "undo_dry=$?"
 echo "---UNDODRY---"
 cat /tmp/df-undo-dry.txt
+
+defendra update --dry-run >/tmp/df-up-dry.txt 2>/tmp/df-up-dry.err
+echo "update_dry=$?"
+echo "---UPDATEDRY---"
+cat /tmp/df-up-dry.txt /tmp/df-up-dry.err
+defendra update --yes >/tmp/df-up.txt 2>/tmp/df-up.err
+echo "update_yes=$?"
+echo "---UPDATE---"
+cat /tmp/df-up.txt /tmp/df-up.err
+echo "version_after=$(defendra version)"
 
 defendra explain SSH-PASSWORD >/tmp/df-ex.txt
 echo "explain_pw=$?"
@@ -300,6 +312,9 @@ echo "$sudo_out" | grep -q 'watch_ec=0' && pass "watch 0" || bad "watch"
 echo "$sudo_out" | grep -q 'allow_yes=0' && pass "allow-site --yes 0" || bad "allow-site"
 echo "$sudo_out" | grep -q 'undo_dry=0' && pass "undo --dry-run 0" || bad "undo dry-run"
 echo "$sudo_out" | grep -q 'Ничего не меняю' && pass "undo dry-run text" || true
+echo "$sudo_out" | grep -q 'update_dry=0' && pass "update --dry-run 0" || bad "update dry-run"
+echo "$sudo_out" | grep -q 'update_yes=0' && pass "update --yes 0" || bad "update --yes"
+echo "$sudo_out" | grep -q "version_after=Defendra $VER" && pass "update did not downgrade" || bad "update changed version"
 echo "$sudo_out" | grep -q 'explain_pw=0' && pass "explain SSH-PASSWORD" || bad "explain pw"
 echo "$sudo_out" | grep -q 'explain_miss=1' && pass "explain unknown 1" || bad "explain unknown"
 echo "$sudo_out" | grep -q 'protect_notty=2' && pass "protect no-tty → 2" || bad "protect no-tty"

@@ -205,7 +205,7 @@ make deb            # nfpm или dpkg-deb: /usr/bin/defendra
 make test
 ```
 
-Версия: git tag. В v1 updater нет: человек ставит новый `.deb` сам. README содержит ровно две команды установки с URL `releases/latest/download/…`, без Go.
+Версия: git tag. Первая установка — копипаст `.deb` из README. Дальше `sudo defendra update` качает GitHub release, сверяет SHA256 и ставит пакет. Старую версию не откатывает. `protect` в интернет не ходит.
 
 ## 9. Порядок файлов, когда будем кодить
 
