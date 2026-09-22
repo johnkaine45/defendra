@@ -42,8 +42,8 @@ func parsePortSpec(s string) (port int, proto string, err error) {
 
 func refuseAllowPort(port int, streetOff bool) string {
 	if check.IsDBPort(port) {
-		if port == 2375 {
-			return "Порт 2375 — это управление Docker с улицы. Открывать нельзя."
+		if port == 2375 || port == 2376 {
+			return fmt.Sprintf("Порт %d — это управление Docker с улицы. Открывать нельзя.", port)
 		}
 		return fmt.Sprintf("Порт %d — это база. С улицы её открывать нельзя: так часто воруют данные.", port)
 	}

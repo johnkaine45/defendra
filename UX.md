@@ -86,7 +86,7 @@ sudo defendra protect
 
 ```text
 Defendra — защита Ubuntu-сервера
-Версия 0.1.31
+Версия 0.1.34
 
 Сейчас нужно одно:
   sudo defendra protect
@@ -101,7 +101,7 @@ Defendra — защита Ubuntu-сервера
 
 ```text
 Defendra — сервер в опасности
-Версия 0.1.31
+Версия 0.1.34
 
 Появился открытый порт 53. Если это ваш проект — sudo defendra protect.
 

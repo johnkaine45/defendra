@@ -49,6 +49,10 @@ func TestRefuseAllowPort(t *testing.T) {
 	if !strings.Contains(got, "Docker") {
 		t.Fatal(got)
 	}
+	got = refuseAllowPort(2376, false)
+	if !strings.Contains(got, "Docker") || !strings.Contains(got, "2376") {
+		t.Fatal(got)
+	}
 	got = refuseAllowPort(22, false)
 	if !strings.Contains(got, "вход") {
 		t.Fatal(got)

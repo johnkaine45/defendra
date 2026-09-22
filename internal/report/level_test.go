@@ -19,6 +19,23 @@ func TestLevelIgnoresWarn(t *testing.T) {
 	}
 }
 
+func TestPrimaryPrefersRedOverYellow(t *testing.T) {
+	fs := []check.Finding{
+		{ID: "SSH-PASSWORD", Status: check.Fail, Severity: check.SevHigh, Plain: "Вход по паролю SSH ещё работает."},
+		{ID: "NET-UNEXPECTED-PORT", Status: check.Fail, Severity: check.SevHigh, Plain: "Появился открытый порт 19999."},
+	}
+	if Level(fs) != "red" {
+		t.Fatalf("level %s", Level(fs))
+	}
+	p := Primary(fs)
+	if p == nil || p.ID != "NET-UNEXPECTED-PORT" {
+		t.Fatalf("primary %+v", p)
+	}
+	if Reason(fs) != "Появился открытый порт 19999." {
+		t.Fatal(Reason(fs))
+	}
+}
+
 func TestReasonUsesPrimary(t *testing.T) {
 	fs := []check.Finding{
 		{ID: "NET-UNEXPECTED-PORT", Status: check.Fail, Severity: check.SevHigh, Plain: "Появился открытый порт 53."},

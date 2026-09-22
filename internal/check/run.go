@@ -17,6 +17,7 @@ var dbPorts = map[int]string{
 	27017: "MongoDB",
 	9200:  "Elasticsearch",
 	2375:  "Docker API",
+	2376:  "Docker API",
 }
 
 var suidAllow = map[string]bool{

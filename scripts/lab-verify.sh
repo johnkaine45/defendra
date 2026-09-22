@@ -49,6 +49,7 @@ if [[ "$http_code" =~ ^(200|301|302|404)$ ]]; then pass "http 80 reachable → $
 elif [[ -z "$http_code" ]]; then echo "SKIP  http 80 (свежий VDS, сайта нет)"
 else bad "http 80 → $http_code"; fi
 
+set +e
 python3 - <<'PY'
 import socket, sys
 fail = 0
@@ -75,6 +76,7 @@ for port, want_open, name in (
 sys.exit(fail)
 PY
 port_ec=$?
+set -e
 if [[ "$port_ec" -ne 0 ]]; then fail=1; fi
 
 echo "=== ssh non-sudo ==="
@@ -98,6 +100,7 @@ head -6 /tmp/df-ns.txt
 echo "$nonsudo"
 echo "$nonsudo" | grep -q "version=Defendra $VER" && pass "version $VER" || bad "version"
 echo "$nonsudo" | grep -q "Версия $VER" && pass "menu version $VER" || bad "menu version"
+echo "$nonsudo" | grep -q 'sudo defendra allow-port' && pass "menu allow-port" || bad "menu allow-port"
 echo "$nonsudo" | grep -q 'menu_exit=0' && pass "menu exit 0" || bad "menu exit"
 echo "$nonsudo" | grep -q 'сервер в порядке' && pass "menu green" || bad "menu green"
 echo "$nonsudo" | grep -q 'how_exit=0' && pass "how-to-login exit 0" || bad "how-to-login"
@@ -139,6 +142,8 @@ ok() { echo "PASS  $*"; }
 bad() { echo "FAIL  $*"; }
 
 echo "version=$(defendra version)"
+echo "local_link=$(readlink /usr/local/bin/defendra 2>/dev/null || echo none)"
+ls -l /usr/bin/defendra /usr/local/bin/defendra
 . /etc/os-release
 echo "os_id=$ID os_ver=$VERSION_ID"
 
@@ -169,6 +174,15 @@ defendra allow-site --dry-run >/tmp/df-as-dry.txt
 echo "allow_dry=$?"
 echo "---ALLOWDRY---"
 cat /tmp/df-as-dry.txt
+
+defendra allow-port --yes >/tmp/df-ap-yes.txt
+echo "allow_port_yes=$?"
+echo "---ALLOWPORTYES---"
+cat /tmp/df-ap-yes.txt
+defendra allow-port --dry-run 6379 >/tmp/df-ap-db.txt
+echo "allow_port_db=$?"
+echo "---ALLOWPORTDB---"
+cat /tmp/df-ap-db.txt
 
 defendra allow-site --yes >/tmp/df-as.txt
 echo "allow_yes=$?"
@@ -311,6 +325,9 @@ echo "$sudo_out" | grep -q 'Defendra • порядок' && pass "status green" 
 echo "$sudo_out" | grep -q 'scan_ec=0' && pass "scan json 0" || bad "scan"
 echo "$sudo_out" | grep -q 'watch_ec=0' && pass "watch 0" || bad "watch"
 echo "$sudo_out" | grep -q 'allow_yes=0' && pass "allow-site --yes 0" || bad "allow-site"
+echo "$sudo_out" | grep -q 'local_link=/usr/bin/defendra' && pass "local bin is symlink" || bad "local bin symlink"
+echo "$sudo_out" | grep -q 'allow_port_yes=2' && pass "allow-port --yes refused" || bad "allow-port --yes"
+echo "$sudo_out" | grep -q 'база' && echo "$sudo_out" | grep -q 'allow_port_db=2' && pass "allow-port 6379 refused" || bad "allow-port db"
 echo "$sudo_out" | grep -q 'undo_dry=0' && pass "undo --dry-run 0" || bad "undo dry-run"
 echo "$sudo_out" | grep -q 'Ничего не меняю' && pass "undo dry-run text" || true
 echo "$sudo_out" | grep -q 'update_dry=0' && pass "update --dry-run 0" || bad "update dry-run"

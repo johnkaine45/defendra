@@ -46,18 +46,19 @@ func Build(s facts.Snapshot, fs []check.Finding) Document {
 	}
 }
 
+var redFinding = map[string]bool{
+	"NET-DB-EXPOSED": true, "USER-UID0": true, "NET-UNEXPECTED-PORT": true,
+	"WATCH-UFW-OFF": true, "PERM-SHADOW": true, "SSH-EMPTY-PASS": true,
+	"WATCH-SELF-PERMS": true, "FW-SSH-MISSING": true, "SSH-STREET": true,
+}
+
 func Level(fs []check.Finding) string {
-	red := map[string]bool{
-		"NET-DB-EXPOSED": true, "USER-UID0": true, "NET-UNEXPECTED-PORT": true,
-		"WATCH-UFW-OFF": true, "PERM-SHADOW": true, "SSH-EMPTY-PASS": true,
-		"WATCH-SELF-PERMS": true, "FW-SSH-MISSING": true, "SSH-STREET": true,
-	}
 	yellow := false
 	for _, f := range fs {
 		if f.Status != check.Fail {
 			continue
 		}
-		if red[f.ID] {
+		if redFinding[f.ID] {
 			return "red"
 		}
 		yellow = true
@@ -70,19 +71,24 @@ func Level(fs []check.Finding) string {
 
 func Primary(fs []check.Finding) *check.Finding {
 	order := []string{
-		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "FW-SSH-MISSING", "SSH-STREET", "PERM-SHADOW", "WATCH-SELF-PERMS",
+		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "FW-SSH-MISSING", "SSH-STREET", "PERM-SHADOW", "WATCH-SELF-PERMS", "SSH-EMPTY-PASS",
+		"NET-UNEXPECTED-PORT",
 		"FW-WEB-BLOCKED", "SSH-NO-KEY", "SSH-PASSWORD", "SSH-ROOT-LOGIN",
-		"FW-DISABLED", "AUTH-FAIL2BAN", "PKG-UNATTENDED", "NET-UNEXPECTED-PORT",
+		"FW-DISABLED", "AUTH-FAIL2BAN", "PKG-UNATTENDED",
 	}
 	idx := map[string]int{}
 	for i, id := range order {
 		idx[id] = i
 	}
+	onlyRed := Level(fs) == "red"
 	var best *check.Finding
 	bestN := 99
 	for i := range fs {
 		f := &fs[i]
 		if f.Status != check.Fail && f.Status != check.Warn {
+			continue
+		}
+		if onlyRed && (f.Status != check.Fail || !redFinding[f.ID]) {
 			continue
 		}
 		n, ok := idx[f.ID]

@@ -45,7 +45,7 @@ Defendra **не** делает сервер неуязвимым и **не** о�
 | Язык реализации | Go, один статический бинарник |
 | Установка | готовый `.deb` с GitHub Releases (или зеркала). На сервере не нужен компилятор |
 | Права | все команды, которые меняют систему — через `sudo` / root |
-| Сеть утилиты | не ходит в интернет, кроме `apt` когда ставит пакеты защиты |
+| Сеть утилиты | `protect` — только `apt` для пакетов защиты. `update` — HTTPS на GitHub Releases (и `*.githubusercontent.com`) |
 
 Не поддерживаем в v1: Debian, CentOS, Docker Swarm, Kubernetes. Панели ISPmanager/Fastpanel **не настраиваем**, но их порты не закрываем молча, см. шаг 3 и UX.md.
 
@@ -70,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.33_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, ставим вместо неё ссылку на `/usr/bin/defendra`. Старый `update` после установки ещё раз удалял этот путь — поэтому любая команда от root заново ставит ссылку, не только `update`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.34_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, ставим вместо неё ссылку на `/usr/bin/defendra`. Старый `update` после установки ещё раз удалял этот путь — поэтому любая команда от root заново ставит ссылку, не только `update`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
 
 ## 4. Как это выглядит для пользователя
 
@@ -437,7 +437,7 @@ Exit codes:
 - `apt` только из уже настроенных репозиториев системы.
 - Exclusive lock на protect/undo.
 - Свои файлы не должны быть world-writable — это отдельная проверка watch.
-- Релиз: checksum и подпись `.deb`.
+- Релиз: checksum SHA256 рядом с `.deb`. Подписи пакета в v1 нет — доверие аккаунт GitHub и checksum.
 
 ## 13. Не делаем в v1
 
@@ -466,7 +466,7 @@ Exit codes:
 6. Повторный `protect` ничего вредоносного не делает.
 7. `undo` с консоли возвращает предыдущий sshd (пароль SSH снова работает, если так было).
 8. Выключение UFW руками → на следующий день MOTD жёлтый/красный, `protect` включает обратно.
-9. Утилита не обращается никуда, кроме `apt` во время установки пакетов.
+9. `protect` не ходит в интернет, кроме `apt`. `update` ходит только на GitHub Releases.
 10. На сервере без веб-сервера 80/443 закрыты. `sudo defendra allow-site` открывает только 80 и 443, UFW остаётся active, SSH по-прежнему allowed. Повторный `allow-site` — no-op, exit 0. `sudo defendra allow-port 6379` отказывает. `allow-port --yes` отказывает. Enter на вопросе порт не открывает.
 11. Если nginx слушает 80, а allow-site не делали — status жёлтый с командой `allow-site`, не с `ufw disable`.
 12. README описывает путь от письма хостера до protect, без Go. Две команды установки.
