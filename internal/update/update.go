@@ -137,6 +137,7 @@ func Run(ctx context.Context, opt Options) int {
 	dropShadowBinary()
 	u.Println("Готово. Сейчас Defendra " + latest + ".")
 	u.Println("Проверьте защиту: sudo defendra protect")
+	u.Println("Если пишет «нет такого файла»:\n\n  hash -r\n  defendra")
 	return 0
 }
 
@@ -149,7 +150,15 @@ func dropShadowBinary() {
 	if _, err := os.Stat(officialBin); err != nil {
 		return
 	}
-	_ = os.Remove(shadowBin)
+	if fi, err := os.Lstat(shadowBin); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if dest, err := os.Readlink(shadowBin); err == nil && dest == officialBin {
+				return
+			}
+		}
+		_ = os.Remove(shadowBin)
+	}
+	_ = os.Symlink(officialBin, shadowBin)
 }
 
 func packageVersion(opt Options) string {

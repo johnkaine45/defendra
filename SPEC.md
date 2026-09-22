@@ -70,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.31_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, её снимаем — иначе `sudo` продолжает запускать её вместо пакета. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.32_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, ставим вместо неё ссылку на `/usr/bin/defendra` — иначе `sudo` запускает старое, а после удаления файла bash пишет «нет такого файла». Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
 
 ## 4. Как это выглядит для пользователя
 

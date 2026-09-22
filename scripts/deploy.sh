@@ -70,7 +70,9 @@ if [[ -z "$SRC" || ! -f "$SRC" ]]; then
   exit 2
 fi
 install -m 0755 "$SRC" /usr/bin/defendra
-rm -f /usr/local/bin/defendra "$SRC" /tmp/defendra
+rm -f /usr/local/bin/defendra
+ln -s /usr/bin/defendra /usr/local/bin/defendra
+rm -f "$SRC" /tmp/defendra
 chmod 0750 /var/lib/defendra 2>/dev/null || true
 chgrp admin /var/lib/defendra 2>/dev/null || true
 chmod 0640 /var/lib/defendra/summary.json 2>/dev/null || true

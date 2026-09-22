@@ -110,8 +110,9 @@ func TestDropShadowBinary(t *testing.T) {
 	officialBin, shadowBin = official, shadow
 	defer func() { officialBin, shadowBin = oldOfficial, oldShadow }()
 	dropShadowBinary()
-	if _, err := os.Stat(shadow); !os.IsNotExist(err) {
-		t.Fatal("shadow left")
+	dest, err := os.Readlink(shadow)
+	if err != nil || dest != official {
+		t.Fatalf("symlink %s %v", dest, err)
 	}
 	if _, err := os.Stat(official); err != nil {
 		t.Fatal(err)

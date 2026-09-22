@@ -81,6 +81,9 @@ func TestHelpCopy(t *testing.T) {
 	if !strings.Contains(h, "sudo defendra update") {
 		t.Fatal("help missing update")
 	}
+	if !strings.Contains(h, "hash -r") {
+		t.Fatal("help missing hash -r after update")
+	}
 	if strings.Contains(h, "ssh root@") {
 		t.Fatal("help should not send people to ssh root after protect")
 	}

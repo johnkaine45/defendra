@@ -30,6 +30,7 @@ cat > "$PKG/DEBIAN/postinst" <<'EOF'
 set -e
 if [ -x /usr/bin/defendra ]; then
   rm -f /usr/local/bin/defendra
+  ln -s /usr/bin/defendra /usr/local/bin/defendra
 fi
 echo "Defendra установлена. Дальше на сервере:"
 echo "  sudo defendra protect"
