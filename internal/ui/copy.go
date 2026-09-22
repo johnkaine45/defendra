@@ -139,7 +139,8 @@ func Help() string {
   только на сервере. Команда: sudo defendra status
 
 После обновления пишет нет такого файла
-  Программа на месте. Оболочка помнит старый путь. Напишите:
+  Программа на месте. Напишите:
+    ln -sfn /usr/bin/defendra /usr/local/bin/defendra
     hash -r
     defendra
 

@@ -137,7 +137,7 @@ func Run(ctx context.Context, opt Options) int {
 	dropShadowBinary()
 	u.Println("Готово. Сейчас Defendra " + latest + ".")
 	u.Println("Проверьте защиту: sudo defendra protect")
-	u.Println("Если пишет «нет такого файла»:\n\n  hash -r\n  defendra")
+	u.Println("Если пишет «нет такого файла»:\n\n  ln -sfn /usr/bin/defendra /usr/local/bin/defendra\n  hash -r\n  defendra")
 	return 0
 }
 
@@ -145,6 +145,8 @@ var (
 	officialBin = "/usr/bin/defendra"
 	shadowBin   = "/usr/local/bin/defendra"
 )
+
+func FixCommandPath() { dropShadowBinary() }
 
 func dropShadowBinary() {
 	if _, err := os.Stat(officialBin); err != nil {

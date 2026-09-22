@@ -49,6 +49,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	hi := host.Detect()
+	if hi.Root {
+		update.FixCommandPath()
+	}
 
 	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "allow-port" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
 	if needRoot {

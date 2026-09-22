@@ -84,6 +84,9 @@ func TestHelpCopy(t *testing.T) {
 	if !strings.Contains(h, "hash -r") {
 		t.Fatal("help missing hash -r after update")
 	}
+	if !strings.Contains(h, "ln -sfn /usr/bin/defendra") {
+		t.Fatal("help missing symlink repair")
+	}
 	if strings.Contains(h, "ssh root@") {
 		t.Fatal("help should not send people to ssh root after protect")
 	}
