@@ -133,3 +133,62 @@ func TestSkipUFWRuleRestoreWithoutConf(t *testing.T) {
 		t.Fatal("new snapshot restores rules with ufw.conf")
 	}
 }
+
+func TestSealOriginOnceAndRestore(t *testing.T) {
+	rootDir = t.TempDir()
+	t.Cleanup(func() { rootDir = "/var/lib/defendra" })
+
+	srcDir := t.TempDir()
+	originFile := filepath.Join(srcDir, "sshd.conf")
+	if err := os.WriteFile(originFile, []byte("before-first\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Snapshot(originFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := SealOriginFromLast(); err != nil {
+		t.Fatal(err)
+	}
+	if !HasOrigin() {
+		t.Fatal("origin missing")
+	}
+
+	if err := os.WriteFile(originFile, []byte("after-first\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Rotate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := Snapshot(originFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := SealOriginFromLast(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(originFile, []byte("live-now\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := RestoreOrigin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != originFile {
+		t.Fatalf("restored %v", got)
+	}
+	b, _ := os.ReadFile(originFile)
+	if string(b) != "before-first\n" {
+		t.Fatalf("origin drifted: %q", b)
+	}
+	lastGot, err := RestoreLast()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lastGot) != 1 {
+		t.Fatalf("last restored %v", lastGot)
+	}
+	b, _ = os.ReadFile(originFile)
+	if string(b) != "after-first\n" {
+		t.Fatalf("last should be after-first: %q", b)
+	}
+}

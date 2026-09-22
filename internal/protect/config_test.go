@@ -140,6 +140,26 @@ func TestPlannedKeepHonorsNoPanel(t *testing.T) {
 	}
 }
 
+func TestPlannedKeepSiteAllowed(t *testing.T) {
+	snap := facts.Snapshot{Host: facts.HostFact{SSHPort: 22}}
+	st := state.State{SiteAllowed: true, KeepPorts: []int{8080}}
+	got := plannedKeep(st, snap, 0)
+	want := map[int]bool{80: true, 443: true, 8080: true}
+	for _, p := range got {
+		delete(want, p)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing %v in %v", want, got)
+	}
+	st.SiteAllowed = false
+	got = plannedKeep(st, snap, 0)
+	for _, p := range got {
+		if p == 80 || p == 443 {
+			t.Fatalf("site ports without SiteAllowed: %v", got)
+		}
+	}
+}
+
 func TestPatchListenAddressesZero(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "postgresql.conf")

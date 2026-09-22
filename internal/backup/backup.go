@@ -14,6 +14,7 @@ var rootDir = state.Dir
 
 func LastDir() string    { return filepath.Join(rootDir, "backups", "last") }
 func ArchiveDir() string { return filepath.Join(rootDir, "backups", "archive") }
+func OriginDir() string  { return filepath.Join(rootDir, "backups", "origin") }
 
 func Rotate() error {
 	last := LastDir()
@@ -117,7 +118,28 @@ func writeLines(path string, paths []string) error {
 }
 
 func RestoreLast() ([]string, error) {
-	man, err := os.ReadFile(filepath.Join(LastDir(), "MANIFEST"))
+	return restoreFrom(LastDir())
+}
+
+// SealOriginFromLast keeps a one-time copy of the first protect snapshot.
+// Later protect runs rotate "last", but uninstall restores from origin.
+func SealOriginFromLast() error {
+	if HasOrigin() {
+		return nil
+	}
+	if !HasLast() {
+		return nil
+	}
+	_ = os.RemoveAll(OriginDir())
+	return copyTree(LastDir(), OriginDir())
+}
+
+func RestoreOrigin() ([]string, error) {
+	return restoreFrom(OriginDir())
+}
+
+func restoreFrom(dir string) ([]string, error) {
+	man, err := os.ReadFile(filepath.Join(dir, "MANIFEST"))
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +149,7 @@ func RestoreLast() ([]string, error) {
 		if skipUFWRuleRestore(paths, p) {
 			continue
 		}
-		src := filepath.Join(LastDir(), filepath.Base(p)+"__"+encode(p))
+		src := filepath.Join(dir, filepath.Base(p)+"__"+encode(p))
 		if _, err := os.Stat(src); err != nil {
 			continue
 		}
@@ -136,7 +158,7 @@ func RestoreLast() ([]string, error) {
 		}
 		restored = append(restored, p)
 	}
-	if abs, err := os.ReadFile(filepath.Join(LastDir(), "ABSENT")); err == nil {
+	if abs, err := os.ReadFile(filepath.Join(dir, "ABSENT")); err == nil {
 		for _, p := range splitLines(string(abs)) {
 			if !CreatedByUs(p) {
 				continue
@@ -148,6 +170,27 @@ func RestoreLast() ([]string, error) {
 		}
 	}
 	return restored, nil
+}
+
+func copyTree(src, dst string) error {
+	if err := os.MkdirAll(dst, 0700); err != nil {
+		return err
+	}
+	ents, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range ents {
+		if e.IsDir() {
+			continue
+		}
+		from := filepath.Join(src, e.Name())
+		to := filepath.Join(dst, e.Name())
+		if err := copyPath(from, to); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreatedByUs is true for files Defendra itself writes. Undo may delete them
@@ -183,8 +226,21 @@ func HasLast() bool {
 	return err == nil
 }
 
+func HasOrigin() bool {
+	_, err := os.Stat(filepath.Join(OriginDir(), "MANIFEST"))
+	return err == nil
+}
+
 func LastSkipsUFWRules() bool {
-	b, err := os.ReadFile(filepath.Join(LastDir(), "MANIFEST"))
+	return skipsUFWRules(LastDir())
+}
+
+func OriginSkipsUFWRules() bool {
+	return skipsUFWRules(OriginDir())
+}
+
+func skipsUFWRules(dir string) bool {
+	b, err := os.ReadFile(filepath.Join(dir, "MANIFEST"))
 	if err != nil {
 		return false
 	}

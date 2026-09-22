@@ -17,7 +17,7 @@ func uninstallQuestion() string {
 	return `Уберу Defendra с этого сервера.
 
 Сниму программу и её настройки.
-Если есть снимок — верну вход и фильтр как до последней настройки.
+Если есть снимок — верну вход и фильтр как до первой настройки.
 Пользователя admin не трогаю. Фильтр и защиту от подбора пароля пакетами не удаляю.
 Обычный вход с улицы, если был выключен, верну.`
 }
@@ -30,8 +30,8 @@ func Uninstall(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	if dry {
 		u.NoPrompt = true
 		u.Println("Ничего не меняю (только показ). Снял бы программу, её настройки и сторожа. Admin и пакеты фильтра оставил бы.")
-		if backup.HasLast() {
-			u.Println("Снимок есть — вернул бы вход и фильтр как до последней настройки.")
+		if backup.HasOrigin() || backup.HasLast() {
+			u.Println("Снимок есть — вернул бы вход и фильтр как до первой настройки.")
 		}
 		return 0
 	}
@@ -56,15 +56,16 @@ func Uninstall(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 		restoreStreetSSH(ctx, st.SSHPort)
 	}
 
-	hadBackup := backup.HasLast()
+	hadBackup := backup.HasOrigin() || backup.HasLast()
 	if hadBackup {
 		u.Println("Возвращаю настройки из снимка…")
-		if _, err := backup.RestoreLast(); err != nil {
+		skipUFW, err := restoreUninstallSnapshot()
+		if err != nil {
 			lk.Close()
 			u.Printf("Не смог откатить снимок: %v\nПрограмму не трогаю.\n", err)
 			return 2
 		}
-		if backup.LastSkipsUFWRules() {
+		if skipUFW {
 			u.Println("Старый снимок фильтра неполный. Правила входа не откатывал.")
 		} else {
 			applyFirewallRestore(ctx)
@@ -92,9 +93,27 @@ func Uninstall(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 Пользователь admin на месте. Фильтр и защита от подбора пароля пакетами остались.
 Проверьте вход с компьютера. Если что-то не так — консоль хостера.`)
 	if hadBackup {
-		u.Println("Настройки входа и фильтра — как в снимке до последней настройки.")
+		u.Println("Настройки входа и фильтра — как в снимке до первой настройки.")
 	}
 	return 0
+}
+
+// restoreUninstallSnapshot prefers the sealed first-protect origin.
+// Labs without origin (older installs) fall back to last.
+func restoreUninstallSnapshot() (skipUFW bool, err error) {
+	if backup.HasOrigin() {
+		if _, err := backup.RestoreOrigin(); err != nil {
+			return false, err
+		}
+		return backup.OriginSkipsUFWRules(), nil
+	}
+	if backup.HasLast() {
+		if _, err := backup.RestoreLast(); err != nil {
+			return false, err
+		}
+		return backup.LastSkipsUFWRules(), nil
+	}
+	return false, nil
 }
 
 func stopWatch(ctx context.Context) {

@@ -150,7 +150,7 @@ unlock
 print how-to-login + ритуал второго окна, если SSH закрыли
 ```
 
-Отдельная команда `allow-site` не входит в пайплайн protect: те же обёртки UFW, тот же lock, пишет `site_allowed` в state. Если UFW не active — exit 2 без «тихо включить». `allow-port` так же снаружи пайплайна: один порт, ConfirmDanger (Enter = нет), `--yes` отказ, базы отказ, номер в `keep_ports`. `uninstall` — ConfirmRemove, при снимке откат как undo, потом снимает свои файлы, timer, пакет и `/var/lib/defendra`; admin и пакеты ufw/fail2ban не трогает.
+Отдельная команда `allow-site` не входит в пайплайн protect: те же обёртки UFW, тот же lock, пишет `site_allowed` в state. Если UFW не active — exit 2 без «тихо включить». `allow-port` так же снаружи пайплайна: один порт, ConfirmDanger (Enter = нет), `--yes` отказ, базы отказ, номер в `keep_ports`. `uninstall` — ConfirmRemove, откат из `backups/origin` (снимок до первого protect; без origin — fallback на `last`), потом снимает свои файлы, timer, пакет и `/var/lib/defendra`; admin и пакеты ufw/fail2ban не трогает.
 
 Идемпотентность: `Needed()` смотрит на факты. Уже есть `admin` с ключом — шаг user не создаёт второго. UFW уже allow 22 — не дублировать.
 

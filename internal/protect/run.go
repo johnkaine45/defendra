@@ -205,6 +205,9 @@ Enter, если спросит перезаписать — напишите n (
 		snapPaths = append(snapPaths, pg...)
 	}
 	_ = backup.Snapshot(snapPaths...)
+	if !st.HasProtect {
+		_ = backup.SealOriginFromLast()
+	}
 
 	total := 9
 	var sudoPW string
@@ -1385,7 +1388,7 @@ func joinPorts(ports []int) string {
 func plannedKeep(st state.State, snap facts.Snapshot, panel int) []int {
 	keep := check.MergePorts(st.KeepPorts, check.ProjectPorts(snap))
 	keep = withoutPorts(keep, declinedPanelPorts(snap, panel))
-	if listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
+	if st.SiteAllowed || listening(snap, 80) || listening(snap, 443) || snap.Firewall.AllowsPort(80) {
 		keep = check.MergePorts(keep, []int{80, 443})
 	}
 	if panel != 0 {
@@ -1438,6 +1441,9 @@ func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
 	if firewallGaps(snap) {
 		return false
 	}
+	if keepPortsMissing(snap, keep) {
+		return false
+	}
 	wantUsers := sshAllowUsers(snap, st.User)
 	if !allowUsersApplied(snap.SSH.AllowUsers, wantUsers) {
 		return false
@@ -1464,6 +1470,23 @@ func firewallGaps(snap facts.Snapshot) bool {
 			proto = "tcp"
 		}
 		if !snap.Firewall.AllowsProto(p.Port, proto) {
+			return true
+		}
+	}
+	return false
+}
+
+// keepPortsMissing is true when state/planned keep ports are not open in UFW
+// (e.g. after undo restored an older filter while keep_ports still remembers them).
+func keepPortsMissing(snap facts.Snapshot, keep []int) bool {
+	if !snap.Firewall.Active {
+		return len(keep) > 0
+	}
+	for _, p := range keep {
+		if p <= 0 {
+			continue
+		}
+		if !snap.Firewall.AllowsPort(p) {
 			return true
 		}
 	}

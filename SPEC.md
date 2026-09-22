@@ -117,7 +117,7 @@ sudo defendra protect
 | `sudo defendra allow-site` | Открыть сайту 80 и 443, не выключая защиту. |
 | `sudo defendra allow-port` | Открыть один свой порт. Enter = не открывать. Базы и `--yes` не открывает. |
 | `sudo defendra update` | Скачать новую версию с GitHub, сверить SHA256 и имя пакета, поставить `.deb`. Не откатывает на старую. |
-| `sudo defendra uninstall` | Убрать программу с сервера. Enter = оставить. Admin и пакеты фильтра не трогает. |
+| `sudo defendra uninstall` | Убрать программу с сервера. Enter = оставить. Вернёт вход/фильтр из снимка до первой настройки. Admin и пакеты фильтра не трогает. |
 | `defendra how-to-login` | Как заходить, два пароля, ритуал второго окна, консоль хостера. |
 
 Команды не для главного экрана: `scan`, `explain`, `--dry-run`, `--yes`, `--format json`, `version`. В меню новичка их нет.
@@ -383,7 +383,7 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
 
 В `how-to-login` этот путь написан теми же словами, что в ритуале второго окна.
 
-Пока undo не вызывали, в `/var/lib/defendra/backups/last/` лежит snapshot. Новый protect сдвигает его в `backups/archive/<timestamp>/` (храним 5 последних).
+Пока undo не вызывали, в `/var/lib/defendra/backups/last/` лежит snapshot перед последним protect. Новый protect сдвигает его в `backups/archive/<timestamp>/` (храним 5 последних). При первом protect копия также сохраняется в `backups/origin/` и больше не перезаписывается — `uninstall` откатывает оттуда (если origin нет — fallback на `last`).
 
 ## 10. Хранение
 
@@ -395,6 +395,7 @@ JSON-схема `schema_version: 1`. Ломать поля нельзя без b
   summary.json                    # копия state, 0640
   first-login.txt                 # пароль sudo admin, 0600, после прочтения можно удалить
   scans/<timestamp>.json
+  backups/origin/                 # снимок до первого protect (для uninstall)
   backups/last/
   backups/archive/
   apply.lock

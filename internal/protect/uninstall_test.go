@@ -22,6 +22,9 @@ func TestUninstallQuestion(t *testing.T) {
 	if !strings.Contains(q, "admin не трогаю") {
 		t.Fatal(q)
 	}
+	if !strings.Contains(q, "до первой настройки") {
+		t.Fatal(q)
+	}
 }
 
 func TestUninstallYesRefused(t *testing.T) {

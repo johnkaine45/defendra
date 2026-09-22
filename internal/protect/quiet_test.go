@@ -60,6 +60,31 @@ func TestAlreadyQuietNewPort(t *testing.T) {
 	}
 }
 
+func TestAlreadyQuietKeepPortMissingFromUFW(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443, 8080}}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+	}
+	keep := []int{80, 443, 8080}
+	if alreadyQuiet(st, snap, keep) {
+		t.Fatal("keep port absent from UFW (e.g. after undo) must re-apply")
+	}
+	if !keepPortsMissing(snap, keep) {
+		t.Fatal("8080 should be missing")
+	}
+	snap.Firewall.Allows = append(snap.Firewall.Allows, "8080/tcp")
+	if keepPortsMissing(snap, keep) {
+		t.Fatal("8080 present")
+	}
+	if !alreadyQuiet(st, snap, keep) {
+		t.Fatal("with keep ports open should stay quiet")
+	}
+}
+
 func TestAlreadyQuietHostDB(t *testing.T) {
 	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
 	snap := facts.Snapshot{
