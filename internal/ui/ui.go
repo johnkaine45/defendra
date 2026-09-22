@@ -86,13 +86,21 @@ func (u *IO) Confirm(question string) (bool, error) {
 }
 
 func (u *IO) ConfirmStrict(question string) (bool, error) {
+	return u.confirmTyped(question, "Напишите да — выключить.  Enter — оставить как есть.")
+}
+
+func (u *IO) ConfirmDanger(question string) (bool, error) {
+	return u.confirmTyped(question, "Напишите да — открыть.  Enter — не открывать.")
+}
+
+func (u *IO) confirmTyped(question, hint string) (bool, error) {
 	if u.NoPrompt {
 		return false, nil
 	}
 	u.Println()
 	u.Println(question)
 	u.Println()
-	u.Println("Напишите да — выключить.  Enter — оставить как есть.")
+	u.Println(hint)
 	line, err := u.In.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return false, err
@@ -112,7 +120,7 @@ func (u *IO) ConfirmStrict(question string) (bool, error) {
 			return false, io.EOF
 		}
 		u.Println("Напишите да или нет")
-		return u.ConfirmStrict(question)
+		return u.confirmTyped(question, hint)
 	}
 }
 

@@ -30,6 +30,7 @@ func MenuAfter(level string) string {
 		body += "  sudo defendra protect        дожать защиту\n"
 	}
 	body += `  sudo defendra allow-site     открыть сайт (порты 80 и 443)
+  sudo defendra allow-port     открыть свой порт — это слабое место
   sudo defendra netbird        вход только через NetBird
   sudo defendra street         вернуть обычный вход с улицы
   sudo defendra update         новая версия программы
@@ -79,6 +80,14 @@ func Help() string {
   Не выключайте фильтр. На сервере:
     sudo defendra allow-site
   Если страницы ещё нет — сначала поставьте nginx или caddy.
+
+Нужен другой порт
+  Не выключайте фильтр. Это слабое место: порт станет виден всем в интернете.
+  На сервере:
+    sudo defendra allow-port
+  или сразу: sudo defendra allow-port 8080
+  Enter — не открывать. Нужно явно написать да.
+  --yes этот шаг не делает. Базы не откроет.
 
 
 База видна из интернета, хотя фильтр включён
@@ -138,6 +147,8 @@ protect --yes не закрыл пароль SSH
 Не выключайте фильтр входящих подключений.
 Не ищите в интернете, как его выключить — для сайта есть:
   sudo defendra allow-site
+Для своего порта (осторожно, это слабое место):
+  sudo defendra allow-port
 `
 }
 

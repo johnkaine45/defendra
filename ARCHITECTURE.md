@@ -150,7 +150,7 @@ unlock
 print how-to-login + ритуал второго окна, если SSH закрыли
 ```
 
-Отдельная команда `allow-site` не входит в пайплайн protect: те же обёртки UFW, тот же lock, пишет `site_allowed` в state. Если UFW не active — exit 2 без «тихо включить».
+Отдельная команда `allow-site` не входит в пайплайн protect: те же обёртки UFW, тот же lock, пишет `site_allowed` в state. Если UFW не active — exit 2 без «тихо включить». `allow-port` так же снаружи пайплайна: один порт, ConfirmDanger (Enter = нет), `--yes` отказ, базы отказ, номер в `keep_ports`.
 
 Идемпотентность: `Needed()` смотрит на факты. Уже есть `admin` с ключом — шаг user не создаёт второго. UFW уже allow 22 — не дублировать.
 

@@ -29,6 +29,10 @@ func TestParseFlags(t *testing.T) {
 	if cmd != "street" {
 		t.Fatalf("street: %s", cmd)
 	}
+	cmd, f = parse([]string{"allow-port", "8080"})
+	if cmd != "allow-port" || f.extra != "8080" {
+		t.Fatalf("allow-port: %s %+v", cmd, f)
+	}
 	cmd, _ = parse([]string{"explain", "SSH-PASSWORD"})
 	if cmd != "explain" {
 		t.Fatalf("explain cmd: %s", cmd)
@@ -86,6 +90,12 @@ func TestHelpCopy(t *testing.T) {
 	if !strings.Contains(h, "sudo defendra street") {
 		t.Fatal("help missing street")
 	}
+	if !strings.Contains(h, "sudo defendra allow-port") {
+		t.Fatal("help missing allow-port")
+	}
+	if !strings.Contains(h, "--yes этот шаг не делает") {
+		t.Fatal("help missing allow-port --yes warning")
+	}
 }
 
 func TestMenuAfterHasNetBird(t *testing.T) {
@@ -100,6 +110,12 @@ func TestMenuAfterHasNetBird(t *testing.T) {
 		t.Fatal(m)
 	}
 	if !strings.Contains(m, "вернуть обычный вход с улицы") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "sudo defendra allow-port") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "слабое место") {
 		t.Fatal(m)
 	}
 }

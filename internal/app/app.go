@@ -50,7 +50,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	hi := host.Detect()
 
-	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
+	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "allow-port" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
 	if needRoot {
 		if !hi.Root {
 			u.Print(ui.NeedSudo(cmd))
@@ -60,10 +60,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			u.Print(ui.NotUbuntu(hi.Pretty))
 			return 2
 		}
-		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "update" || cmd == "netbird" || cmd == "street"
+		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "allow-port" || cmd == "update" || cmd == "netbird" || cmd == "street"
 		if asks && !flags.yes && !flags.dry && !isTTY(stdin) {
-			if cmd == "netbird" {
-				u.Println("Без окна терминала не спрашиваю. Запустите в терминале:\n\n  sudo defendra netbird")
+			if cmd == "netbird" || cmd == "allow-port" {
+				u.Println("Без окна терминала не спрашиваю. Запустите в терминале:\n\n  sudo defendra " + cmd)
 				return 2
 			}
 			u.Println("Без окна терминала Defendra сама не спрашивает. Напишите:\n\n  sudo defendra " + cmd + " --yes")
@@ -102,6 +102,10 @@ Defendra для облачного сервера. Здесь запускать
 		return protect.Run(ctx, hi, protect.Options{User: flags.user, Yes: flags.yes, DryRun: flags.dry, UI: u})
 	case "allow-site":
 		return protect.AllowSite(ctx, hi, u, flags.yes, flags.dry)
+	case "allow-port":
+		code := protect.AllowPort(ctx, hi, u, flags.yes, flags.dry, flags.extra)
+		audit.Event("allow-port", exitWord(code), flags.extra)
+		return code
 	case "undo":
 		code := protect.Undo(ctx, hi, u, flags.yes, flags.dry)
 		audit.Event("undo", exitWord(code), "")

@@ -131,6 +131,7 @@ sudo defendra update
 | `sudo defendra protect` | Настроить или дожать защиту |
 | `sudo defendra status` | Всё ли в порядке |
 | `sudo defendra allow-site` | Открыть сайту 80 и 443 |
+| `sudo defendra allow-port` | Открыть свой порт. Это слабое место, нужно явно «да» |
 | `sudo defendra update` | Новая версия программы |
 | `sudo defendra undo` | Откатить последний protect |
 | `defendra how-to-login` | Как заходить, два пароля, консоль хостера |

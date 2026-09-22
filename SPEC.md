@@ -70,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.28_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.29_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
 
 ## 4. Как это выглядит для пользователя
 
@@ -115,6 +115,7 @@ sudo defendra protect
 | `sudo defendra status` | Всё ли в порядке, простыми словами. |
 | `sudo defendra undo` | Откатить последний `protect`. |
 | `sudo defendra allow-site` | Открыть сайту 80 и 443, не выключая защиту. |
+| `sudo defendra allow-port` | Открыть один свой порт. Enter = не открывать. Базы и `--yes` не открывает. |
 | `sudo defendra update` | Скачать новую версию с GitHub, сверить SHA256 и имя пакета, поставить `.deb`. Не откатывает на старую. |
 | `defendra how-to-login` | Как заходить, два пароля, ритуал второго окна, консоль хостера. |
 
@@ -127,6 +128,7 @@ sudo defendra protect
 | `sudo defendra protect --dry-run` | Показать план, ничего не менять. |
 | `sudo defendra protect --yes` | Без вопроса, для скриптов. Enter в обычном режиме = да. Если нет ключа — всё равно отказ на шаг «закрыть пароль». |
 | `sudo defendra allow-site --dry-run` | Показать правила UFW, ничего не менять. |
+| `sudo defendra allow-port --dry-run` | Показать, какой порт открыли бы. `--yes` порт не открывает. |
 | `sudo defendra scan --format json` | Для нас и для автоматизации, не для главного экрана. |
 | `sudo defendra version` | Версия. |
 
@@ -308,7 +310,7 @@ sudo defendra allow-site
 6. В `state.json` флаг `site_allowed: true`. Watch не считает 80/443 «неожиданным портом», даже если nginx ещё не слушает.
 7. Если nginx уже слушает, а 80/443 закрыты — `status` жёлтый: «сайт запущен, файрвол его не пускает. Выполните sudo defendra allow-site».
 
-Не открываем произвольные порты (`allow 8080`) в v1 — слишком легко выставить Redis.
+Свой порт, не сайт: `sudo defendra allow-port` (или `allow-port 8080`). Enter = не открывать, нужно явное «да». `--yes` не открывает. Базы (5432, 3306, 6379, 27017, 9200) и Docker API 2375 — отказ. Порт 22 не открывает этим путём. Запоминает номер в `keep_ports`, чтобы status не орал «неожиданный порт».
 
 ## 8. Модель находки (внутренний контракт)
 
@@ -449,7 +451,7 @@ Exit codes:
 - Исправление по одному ID как главный UX (`defendra fix SSH-001`). Внутри protect идёт пайплайн шагов, не меню из 40 галок.
 - Автоматический reboot.
 - Генерация приватного SSH-ключа на сервере.
-- Произвольное `defendra allow 8080`. Только `allow-site` (80 и 443).
+- Молчаливое `defendra allow-port --yes`. Только явный ответ «да» в терминале. Базы этой командой всё равно не открыть.
 - `git clone` / `go install` как основной способ установки.
 
 ## 14. Критерии приёмки v1
@@ -465,7 +467,7 @@ Exit codes:
 7. `undo` с консоли возвращает предыдущий sshd (пароль SSH снова работает, если так было).
 8. Выключение UFW руками → на следующий день MOTD жёлтый/красный, `protect` включает обратно.
 9. Утилита не обращается никуда, кроме `apt` во время установки пакетов.
-10. На сервере без веб-сервера 80/443 закрыты. `sudo defendra allow-site` открывает только 80 и 443, UFW остаётся active, SSH по-прежнему allowed. Повторный `allow-site` — no-op, exit 0.
+10. На сервере без веб-сервера 80/443 закрыты. `sudo defendra allow-site` открывает только 80 и 443, UFW остаётся active, SSH по-прежнему allowed. Повторный `allow-site` — no-op, exit 0. `sudo defendra allow-port 6379` отказывает. `allow-port --yes` отказывает. Enter на вопросе порт не открывает.
 11. Если nginx слушает 80, а allow-site не делали — status жёлтый с командой `allow-site`, не с `ufw disable`.
 12. README описывает путь от письма хостера до protect, без Go. Две команды установки.
 13. `defendra` без аргументов — русское меню, не usage cobra.

@@ -73,6 +73,35 @@ func TestConfirmStrictNoPromptNever(t *testing.T) {
 	}
 }
 
+func TestConfirmDangerEnterKeeps(t *testing.T) {
+	u := New(strings.NewReader("\n"), io.Discard, io.Discard)
+	ok, err := u.ConfirmDanger("?")
+	if err != nil || ok {
+		t.Fatalf("enter: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestConfirmDangerDa(t *testing.T) {
+	var out bytes.Buffer
+	u := New(strings.NewReader("да\n"), &out, io.Discard)
+	ok, err := u.ConfirmDanger("Открою порт 8080")
+	if err != nil || !ok {
+		t.Fatalf("да: ok=%v err=%v", ok, err)
+	}
+	if !strings.Contains(out.String(), "Напишите да — открыть") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestConfirmDangerNoPromptNever(t *testing.T) {
+	u := New(strings.NewReader("да\n"), io.Discard, io.Discard)
+	u.NoPrompt = true
+	ok, err := u.ConfirmDanger("?")
+	if err != nil || ok {
+		t.Fatalf("noprompt must not open: ok=%v err=%v", ok, err)
+	}
+}
+
 func TestConfirmWritesQuestion(t *testing.T) {
 	var out bytes.Buffer
 	u := New(strings.NewReader("\n"), &out, io.Discard)
