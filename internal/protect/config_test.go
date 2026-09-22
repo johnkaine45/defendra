@@ -190,7 +190,10 @@ func TestSSHMatchAddr(t *testing.T) {
 		t.Fatal("reject")
 	}
 	specs := sshMatchSpecs("admin", "203.0.113.10")
-	if len(specs) != 2 {
+	if len(specs) != 3 {
 		t.Fatalf("%v", specs)
+	}
+	if specs[2] != "user=admin" {
+		t.Fatalf("user-only fallback: %v", specs)
 	}
 }

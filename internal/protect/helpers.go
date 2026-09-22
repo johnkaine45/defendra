@@ -244,7 +244,7 @@ func ufwConfEnabled(conf string) bool {
 	return false
 }
 
-func ensureUser(ctx context.Context, name, keyLine string, uiio *ui.IO) (string, error) {
+func ensureUser(ctx context.Context, name, keyLine string, firstProtect bool) (string, error) {
 	home := "/home/" + name
 	existed := userExists(name)
 	if !existed {
@@ -303,7 +303,7 @@ func ensureUser(ctx context.Context, name, keyLine string, uiio *ui.IO) (string,
 	_, _, _ = oscmd.Run(ctx, 5*time.Second, "chmod", "600", ak)
 
 	var pw string
-	if !existed {
+	if needNewSudoPassword(existed, firstProtect, firstLoginPresent()) {
 		var err error
 		pw, err = randPassword()
 		if err != nil {
@@ -328,8 +328,19 @@ func ensureUser(ctx context.Context, name, keyLine string, uiio *ui.IO) (string,
 	if err := os.Rename(tmp, sudoersFile); err != nil {
 		return pw, err
 	}
-	_ = uiio
 	return pw, nil
+}
+
+func needNewSudoPassword(existed, firstProtect, haveLoginFile bool) bool {
+	if !existed {
+		return true
+	}
+	return firstProtect && !haveLoginFile
+}
+
+func firstLoginPresent() bool {
+	b, err := os.ReadFile(firstLogin)
+	return err == nil && strings.TrimSpace(string(b)) != ""
 }
 
 func groupExists(name string) bool {

@@ -62,3 +62,18 @@ func TestAllowUsersApplied(t *testing.T) {
 		t.Fatal("empty effective")
 	}
 }
+
+func TestNeedNewSudoPassword(t *testing.T) {
+	if !needNewSudoPassword(false, true, false) {
+		t.Fatal("new user")
+	}
+	if !needNewSudoPassword(true, true, false) {
+		t.Fatal("existing admin, first protect, no file")
+	}
+	if needNewSudoPassword(true, true, true) {
+		t.Fatal("already have first-login")
+	}
+	if needNewSudoPassword(true, false, false) {
+		t.Fatal("repeat protect must not rotate")
+	}
+}

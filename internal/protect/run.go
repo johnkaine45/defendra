@@ -210,7 +210,7 @@ Enter, если спросит перезаписать — напишите n (
 	} else {
 		u.Progress(1, total, "Создаю пользователя "+opt.User+"…")
 	}
-	pw, err := ensureUser(ctx, opt.User, key, u)
+	pw, err := ensureUser(ctx, opt.User, key, !st.HasProtect)
 	if err != nil {
 		u.Printf("Не получилось создать пользователя: %v\n", err)
 		return 2
@@ -277,7 +277,10 @@ Enter, если спросит перезаписать — напишите n (
 	if skipped := passwordOnlyLogins(snap2, opt.User); len(skipped) > 0 {
 		u.Println("Пользователь " + strings.Join(skipped, ", ") + " входит только по паролю.")
 		u.Println("После закрытия пароля он не зайдёт по SSH. Добавьте ему ключ или заходите как " + opt.User + ".")
-		if canLock && !opt.Yes {
+		if canLock && opt.Yes {
+			canLock = false
+			u.Println("Пароль SSH не закрывал: есть пользователь только с паролем. Добавьте ключ или запустите без --yes.")
+		} else if canLock {
 			okLock, err := u.Confirm("Закрыть пароль SSH? " + strings.Join(skipped, ", ") + " больше не войдёт.")
 			if err != nil || !okLock {
 				canLock = false
@@ -1005,6 +1008,7 @@ func sshMatchSpecs(user, clientIP string) []string {
 	}
 	add("127.0.0.1")
 	add(clientIP)
+	specs = append(specs, "user="+user)
 	return specs
 }
 
