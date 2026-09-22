@@ -21,6 +21,14 @@ func TestParseFlags(t *testing.T) {
 	if cmd != "help" {
 		t.Fatalf("help: %s", cmd)
 	}
+	cmd, _ = parse([]string{"netbird"})
+	if cmd != "netbird" {
+		t.Fatalf("netbird: %s", cmd)
+	}
+	cmd, _ = parse([]string{"street"})
+	if cmd != "street" {
+		t.Fatalf("street: %s", cmd)
+	}
 	cmd, _ = parse([]string{"explain", "SSH-PASSWORD"})
 	if cmd != "explain" {
 		t.Fatalf("explain cmd: %s", cmd)
@@ -72,6 +80,28 @@ func TestHelpCopy(t *testing.T) {
 	if strings.Contains(h, "ssh root@") {
 		t.Fatal("help should not send people to ssh root after protect")
 	}
+	if !strings.Contains(h, "sudo defendra netbird") {
+		t.Fatal("help missing netbird")
+	}
+	if !strings.Contains(h, "sudo defendra street") {
+		t.Fatal("help missing street")
+	}
+}
+
+func TestMenuAfterHasNetBird(t *testing.T) {
+	m := ui.MenuAfter("green")
+	if !strings.Contains(m, "sudo defendra netbird") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "вход только через NetBird") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "sudo defendra street") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "вернуть обычный вход с улицы") {
+		t.Fatal(m)
+	}
 }
 
 func TestHowToLoginRescue(t *testing.T) {
@@ -81,5 +111,21 @@ func TestHowToLoginRescue(t *testing.T) {
 	}
 	if strings.Contains(s, "ssh root@") {
 		t.Fatal("rescue promised root SSH")
+	}
+}
+
+func TestHowToLoginStreetOff(t *testing.T) {
+	s := ui.FormatHowToLogin(ui.LoginHint{
+		IP: "195.58.153.30", User: "admin", SSHLocked: true,
+		StreetOff: true, NetBirdIP: "100.64.1.2",
+	})
+	if !strings.Contains(s, "ssh admin@100.64.1.2") {
+		t.Fatal(s)
+	}
+	if !strings.Contains(s, "Обычный вход с улицы выключен") {
+		t.Fatal(s)
+	}
+	if !strings.Contains(s, "NetBird") {
+		t.Fatal(s)
 	}
 }

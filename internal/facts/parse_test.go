@@ -151,4 +151,7 @@ func TestPickPublicIP(t *testing.T) {
 	if got := pickPublicIP([]string{"127.0.0.1", "fe80::1"}); got != "" {
 		t.Fatalf("none: %s", got)
 	}
+	if got := pickPublicIP([]string{"100.64.12.8", "195.58.153.30"}); got != "195.58.153.30" {
+		t.Fatalf("skip mesh: %s", got)
+	}
 }

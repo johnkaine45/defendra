@@ -50,7 +50,7 @@ func Level(fs []check.Finding) string {
 	red := map[string]bool{
 		"NET-DB-EXPOSED": true, "USER-UID0": true, "NET-UNEXPECTED-PORT": true,
 		"WATCH-UFW-OFF": true, "PERM-SHADOW": true, "SSH-EMPTY-PASS": true,
-		"WATCH-SELF-PERMS": true, "FW-SSH-MISSING": true,
+		"WATCH-SELF-PERMS": true, "FW-SSH-MISSING": true, "SSH-STREET": true,
 	}
 	yellow := false
 	for _, f := range fs {
@@ -70,7 +70,7 @@ func Level(fs []check.Finding) string {
 
 func Primary(fs []check.Finding) *check.Finding {
 	order := []string{
-		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "FW-SSH-MISSING", "PERM-SHADOW", "WATCH-SELF-PERMS",
+		"NET-DB-EXPOSED", "USER-UID0", "WATCH-UFW-OFF", "FW-SSH-MISSING", "SSH-STREET", "PERM-SHADOW", "WATCH-SELF-PERMS",
 		"FW-WEB-BLOCKED", "SSH-NO-KEY", "SSH-PASSWORD", "SSH-ROOT-LOGIN",
 		"FW-DISABLED", "AUTH-FAIL2BAN", "PKG-UNATTENDED", "NET-UNEXPECTED-PORT",
 	}
@@ -132,6 +132,9 @@ func StatusText(s facts.Snapshot, fs []check.Finding, ip, user string) string {
 	if yesSSHPassword(fs) {
 		entry = "ещё по паролю"
 	}
+	if s.NetBird.Ready() && s.SSH.ListenerKnown && !s.SSH.ListenerActive {
+		entry = "через NetBird"
+	}
 	if user == "" {
 		user = "root"
 	}
@@ -173,7 +176,13 @@ func StatusText(s facts.Snapshot, fs []check.Finding, ip, user string) string {
 	if ip == "" {
 		ip = s.Host.PublicIP
 	}
-	if ip != "" {
+	if s.NetBird.Ready() && s.SSH.ListenerKnown && !s.SSH.ListenerActive {
+		nb := s.NetBird.IP
+		if nb == "" {
+			nb = "АДРЕС_NETBIRD"
+		}
+		b.WriteString("\nКак заходить:  ssh " + user + "@" + nb + "  (через NetBird)\n")
+	} else if ip != "" {
 		b.WriteString("\nКак заходить:  ssh " + user + "@" + ip + "\n")
 	}
 	b.WriteString("Справка:       defendra help\n")

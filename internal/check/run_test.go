@@ -272,6 +272,110 @@ func TestFriendlyPermPath(t *testing.T) {
 	}
 }
 
+func TestStreetOffWithNetBirdPasses(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no", ListenerKnown: true, ListenerActive: false},
+		Host:     facts.HostFact{SSHPort: 22},
+		NetBird:  facts.NetBirdFact{Installed: true, Connected: true, SSHEnabled: true, IP: "100.64.1.1"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"80"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{Unattended: true, UnattendedEnabled: true},
+		Sysctl:   map[string]string{"net.ipv4.tcp_syncookies": "1"},
+		Users:    []facts.User{{Name: "admin", UID: 1000, Sudo: true, HasKeys: true}},
+	}
+	fs := Run(s, true, true, nil)
+	got := map[string]Status{}
+	plain := map[string]string{}
+	for _, f := range fs {
+		got[f.ID] = f.Status
+		plain[f.ID] = f.Plain
+	}
+	if got["FW-SSH-MISSING"] != Pass {
+		t.Fatalf("fw: %v %s", got["FW-SSH-MISSING"], plain["FW-SSH-MISSING"])
+	}
+	if got["SSH-STREET"] != Pass {
+		t.Fatalf("street: %v %s", got["SSH-STREET"], plain["SSH-STREET"])
+	}
+	if !strings.Contains(plain["SSH-STREET"], "NetBird") {
+		t.Fatalf("plain: %s", plain["SSH-STREET"])
+	}
+}
+
+func TestFWSSHMissingFailsIfStreetStillUp(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no", ListenerKnown: true, ListenerActive: true},
+		Host:     facts.HostFact{SSHPort: 22},
+		NetBird:  facts.NetBirdFact{Installed: true, Connected: true, SSHEnabled: true, IP: "100.64.1.1"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"80"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{Unattended: true, UnattendedEnabled: true},
+		Sysctl:   map[string]string{"net.ipv4.tcp_syncookies": "1"},
+		Users:    []facts.User{{Name: "admin", UID: 1000, Sudo: true, HasKeys: true}},
+	}
+	fs := Run(s, true, true, nil)
+	for _, f := range fs {
+		if f.ID == "FW-SSH-MISSING" {
+			if f.Status != Fail {
+				t.Fatalf("%+v", f)
+			}
+			return
+		}
+	}
+	t.Fatal("missing FW-SSH-MISSING")
+}
+
+func TestStreetOffWithoutNetBirdFails(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no", ListenerKnown: true, ListenerActive: false},
+		Host:     facts.HostFact{SSHPort: 22},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22"}},
+	}
+	fs := Run(s, false, false, nil)
+	for _, f := range fs {
+		if f.ID == "SSH-STREET" {
+			if f.Status != Fail {
+				t.Fatalf("%+v", f)
+			}
+			return
+		}
+	}
+	t.Fatal("missing SSH-STREET")
+}
+
+func TestStreetUnknownSkipped(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:  facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no"},
+		Host: facts.HostFact{SSHPort: 22},
+	}
+	fs := Run(s, false, false, nil)
+	for _, f := range fs {
+		if f.ID == "SSH-STREET" && f.Status != Skipped {
+			t.Fatalf("%+v", f)
+		}
+	}
+}
+
+func TestNetBirdPortNotUnexpected(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:  facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no"},
+		Host: facts.HostFact{SSHPort: 22},
+		Ports: []facts.Listen{
+			{Addr: "100.64.1.1", Port: 22022, Proto: "tcp", Process: "netbird"},
+		},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{Unattended: true, UnattendedEnabled: true},
+		Sysctl:   map[string]string{"net.ipv4.tcp_syncookies": "1"},
+		Users:    []facts.User{{Name: "admin", UID: 1000, Sudo: true, HasKeys: true}},
+	}
+	fs := Run(s, true, true, nil)
+	for _, f := range fs {
+		if f.ID == "NET-UNEXPECTED-PORT" && f.Status != Pass {
+			t.Fatalf("%+v", f)
+		}
+	}
+}
+
 func TestSuidAllowUbuntu2604SudoWS(t *testing.T) {
 	s := facts.Snapshot{
 		SUID: []string{"/usr/bin/sudo.ws", "/usr/bin/passwd", "/usr/bin/sudo"},

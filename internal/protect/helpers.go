@@ -65,6 +65,13 @@ func sshService(ctx context.Context) string {
 }
 
 func ensureSSHListener(ctx context.Context) {
+	if keepStreetOff(state.Load()) {
+		return
+	}
+	forceSSHListener(ctx)
+}
+
+func forceSSHListener(ctx context.Context) {
 	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "unmask", "ssh.socket")
 	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "enable", "ssh.socket")
 	_, _, _ = oscmd.Run(ctx, 10*time.Second, "systemctl", "start", "ssh.socket")
@@ -76,6 +83,9 @@ func ensureSSHListener(ctx context.Context) {
 }
 
 func armSSHWatchdog(ctx context.Context, port int) {
+	if keepStreetOff(state.Load()) {
+		return
+	}
 	if port <= 0 || port > 65535 {
 		port = 22
 	}
@@ -206,6 +216,9 @@ func reloadSSH(ctx context.Context) error {
 	out, errOut, err := oscmd.Run(ctx, 15*time.Second, "sshd", "-t")
 	if err != nil {
 		return fmt.Errorf("конфиг входа сломан: %s %s", out, errOut)
+	}
+	if keepStreetOff(state.Load()) {
+		return nil
 	}
 	_, _, err = oscmd.Run(ctx, 15*time.Second, "systemctl", "reload", svc)
 	ensureSSHListener(ctx)

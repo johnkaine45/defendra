@@ -41,13 +41,16 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	case "how-to-login":
 		st := state.Load()
-		u.Print(ui.HowToLogin(st.PublicIP, st.User, st.SSHLocked))
+		u.Print(ui.FormatHowToLogin(ui.LoginHint{
+			IP: st.PublicIP, User: st.User, SSHLocked: st.SSHLocked,
+			StreetOff: st.StreetSSHOff, NetBirdIP: st.NetBirdIP,
+		}))
 		return 0
 	}
 
 	hi := host.Detect()
 
-	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update"
+	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
 	if needRoot {
 		if !hi.Root {
 			u.Print(ui.NeedSudo(cmd))
@@ -57,8 +60,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			u.Print(ui.NotUbuntu(hi.Pretty))
 			return 2
 		}
-		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "update"
+		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "update" || cmd == "netbird" || cmd == "street"
 		if asks && !flags.yes && !flags.dry && !isTTY(stdin) {
+			if cmd == "netbird" {
+				u.Println("Без окна терминала не спрашиваю. Запустите в терминале:\n\n  sudo defendra netbird")
+				return 2
+			}
 			u.Println("Без окна терминала Defendra сама не спрашивает. Напишите:\n\n  sudo defendra " + cmd + " --yes")
 			return 2
 		}
@@ -120,6 +127,14 @@ Defendra для облачного сервера. Здесь запускать
 	case "update":
 		code := update.Run(ctx, update.Options{Yes: flags.yes, DryRun: flags.dry, UI: u})
 		audit.Event("update", exitWord(code), "")
+		return code
+	case "netbird":
+		code := protect.StreetOff(ctx, hi, u, flags.yes, flags.dry)
+		audit.Event("netbird", exitWord(code), "")
+		return code
+	case "street":
+		code := protect.StreetOn(ctx, hi, u, flags.yes, flags.dry)
+		audit.Event("street", exitWord(code), "")
 		return code
 	default:
 		u.Print(ui.UnknownCommand())
@@ -210,6 +225,9 @@ func cmdStatus(ctx context.Context, hi host.Info, u *ui.IO, asJSON bool) int {
 	st.Motd = report.Motd(fs)
 	st.PublicIP = snap.Host.PublicIP
 	st.SSHPort = snap.Host.SSHPort
+	if snap.NetBird.IP != "" {
+		st.NetBirdIP = snap.NetBird.IP
+	}
 	_ = state.Save(st)
 	if asJSON {
 		u.Println(string(b))

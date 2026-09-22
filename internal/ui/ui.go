@@ -45,16 +45,21 @@ func (u *IO) ErrPrint(format string, a ...any) {
 }
 
 func (u *IO) Progress(step, total int, msg string) {
-	line := fmt.Sprintf("Defendra • шаг %d из %d   %s", step, total, msg)
-	fmt.Fprintln(u.Err, u.Paint(Dim, line))
+	if step == 1 {
+		fmt.Fprintln(u.Out)
+	}
+	line := fmt.Sprintf("Шаг %d из %d  %s", step, total, msg)
+	fmt.Fprintln(u.Out, u.Paint(Dim, line))
 }
 
 func (u *IO) Confirm(question string) (bool, error) {
 	if u.NoPrompt {
 		return true, nil
 	}
+	u.Println()
 	u.Println(question)
-	u.Println("Продолжить? Нажмите Enter или напишите да / нет")
+	u.Println()
+	u.Println("Продолжить?  Enter — да.  Или напишите нет.")
 	line, err := u.In.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return false, err
@@ -77,6 +82,37 @@ func (u *IO) Confirm(question string) (bool, error) {
 		}
 		u.Println("Напишите да или нет")
 		return u.Confirm(question)
+	}
+}
+
+func (u *IO) ConfirmStrict(question string) (bool, error) {
+	if u.NoPrompt {
+		return false, nil
+	}
+	u.Println()
+	u.Println(question)
+	u.Println()
+	u.Println("Напишите да — выключить.  Enter — оставить как есть.")
+	line, err := u.In.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	s := strings.TrimSpace(strings.ToLower(line))
+	s = strings.ReplaceAll(s, "ё", "е")
+	if err == io.EOF && s == "" {
+		return false, io.EOF
+	}
+	switch s {
+	case "да", "д", "yes", "y":
+		return true, nil
+	case "", "нет", "н", "no", "n":
+		return false, nil
+	default:
+		if err == io.EOF {
+			return false, io.EOF
+		}
+		u.Println("Напишите да или нет")
+		return u.ConfirmStrict(question)
 	}
 }
 

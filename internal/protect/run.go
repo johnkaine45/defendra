@@ -46,13 +46,15 @@ func Run(ctx context.Context, hi host.Info, opt Options) int {
 	key := opt.SSHKey
 	if !check.HasSudoKey(snap) && key == "" && !skipQuestions(opt) {
 		u.Println("Сейчас на сервер пускают по паролю. Так его взламывают за ночь.")
-		u.Println("Чтобы закрыть пароль, нужен ключ с ВАШЕГО компьютера.")
+		u.Println("Чтобы закрыть пароль, нужен ключ с вашего компьютера.")
 		u.Println("")
 		u.Println("На каком компьютере вы сейчас сидите?")
+		u.Println("")
 		u.Println("  1 — Windows")
 		u.Println("  2 — Mac")
 		u.Println("  3 — ключ уже есть, просто вставлю")
 		u.Println("  4 — пока без ключа, сделайте что можно")
+		u.Println("")
 		line, err := u.ReadLine()
 		if err != nil {
 			u.Print(ui.Interrupted())
@@ -105,14 +107,13 @@ Enter, если спросит перезаписать — напишите n (
 			u.Println("Настраиваю сервер…")
 		}
 	} else if !opt.DryRun {
-		ok, err := u.Confirm(`Настрою этот сервер так, чтобы с улицы не подбирали пароль
-и не лезли в базы.
+		ok, err := u.Confirm(`Настрою этот сервер.
 
+С улицы не подберут пароль и не полезут в базы.
 Будет пользователь ` + opt.User + `. Вход — по ключу, если ключ есть.
-Фильтр входящих подключений включу.
 Уже работающие сайты и программы не трогаю.
 
-Это не щит от большой атаки на канал. Её включает хостер в панели VDS.`)
+Это не щит от атаки на канал. Её включает хостер в панели.`)
 		if err != nil {
 			u.Print(ui.Interrupted())
 			return 2
@@ -167,6 +168,9 @@ Enter, если спросит перезаписать — напишите n (
 			}
 		} else {
 			u.Println("  • пароль SSH останется — нет ключа")
+		}
+		if snap.NetBird.Installed && snap.NetBird.Connected && !st.StreetSSHOff {
+			u.Println("  • вход через NetBird есть — обычную службу с улицы выключает: sudo defendra netbird")
 		}
 		return 0
 	}
@@ -303,7 +307,21 @@ Enter, если спросит перезаписать — напишите n (
 		}
 	}
 
-	ensureSSHListener(ctx)
+	if st.StreetSSHOff && !snap.NetBird.Ready() {
+		restoreStreetSSH(ctx, snap.Host.SSHPort)
+		st.StreetSSHOff = false
+		u.Println("Вход через NetBird пропал. Обычную службу входа вернул, чтобы не потерять доступ.")
+	} else if st.StreetSSHOff && snap.SSH.ListenerActive {
+		if err := disableStreetSSH(ctx, snap.Host.SSHPort); err != nil {
+			u.Printf("Обычная служба входа снова включилась, выключить не смог: %v\n", err)
+		} else {
+			u.Println("Обычная служба входа снова включилась сама. Снова выключил.")
+		}
+	}
+
+	if !st.StreetSSHOff {
+		ensureSSHListener(ctx)
+	}
 
 	u.Progress(9, total, "Сохраняю памятку…")
 	_ = hardenPerms()
@@ -316,6 +334,9 @@ Enter, если спросит перезаписать — напишите n (
 	st.SSHLocked = locked
 	st.PublicIP = snap.Host.PublicIP
 	st.SSHPort = snap.Host.SSHPort
+	if snap.NetBird.IP != "" {
+		st.NetBirdIP = snap.NetBird.IP
+	}
 	if allowPanel != 0 {
 		st.PanelPort = allowPanel
 	}
@@ -335,27 +356,24 @@ Enter, если спросит перезаписать — напишите n (
 	code := exitIfNotGreen(st.Level)
 	if locked {
 		audit.Event("protect", "ok", "ssh_locked")
-		u.Println("Готово. Пароль SSH выключен.")
 		if wasLocked {
-			u.Printf("Вход: ssh %s@%s\n", opt.User, ip)
+			u.Println("Готово. Пароль SSH выключен.")
+			if st.StreetSSHOff {
+				printNetBirdLogin(u, opt.User, st.NetBirdIP)
+			} else {
+				u.Printf("\nВход:\n\n  ssh %s@%s\n", opt.User, ip)
+			}
 			if code != 0 {
-				u.Print(ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
+				u.Print("\n" + ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
 			}
 			return code
 		}
-		u.Println("")
-		u.Println("1. ЭТО ОКНО НЕ ЗАКРЫВАЙТЕ.")
-		u.Println("2. Откройте ДРУГОЕ окно на своём компьютере (не в панели хостера).")
-		u.Println("3. Введите:")
-		u.Println("")
-		u.Printf("   ssh %s@%s\n\n", opt.User, ip)
-		u.Println("Если вошли — это окно можно закрыть.")
-		u.Println("Если не вошли — см. ниже, не перезагружайте сервер.")
-		u.Println("")
+		u.Print("\n" + ui.FirstLockRitual(ip, opt.User))
 		printPasswordBox(u, sudoPW)
-		u.Print("\n" + ui.HowToLogin(ip, opt.User, true))
+		u.Print("\n" + ui.PasswordRoles())
+		u.Print("\n" + ui.FirstLockNext())
 		if code != 0 {
-			u.Print(ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
+			u.Print("\n" + ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
 		}
 		return code
 	}
@@ -416,14 +434,11 @@ func readKey(u *ui.IO) string {
 }
 
 func printPasswordBox(u *ui.IO, pw string) {
-	if pw == "" {
+	box := ui.PasswordBox(pw)
+	if box == "" {
 		return
 	}
-	u.Println(u.Paint(ui.Bold, "┌─ пароль для sudo, один раз ─────────────┐"))
-	u.Printf("%s\n", u.Paint(ui.Bold, "│  "+pw))
-	u.Println("│  запишите и храните как пароль от почты │")
-	u.Println("└─────────────────────────────────────────┘")
-	u.Println("через SSH этот пароль не спрашивают. Он нужен, когда на сервере пишете sudo.")
+	u.Print("\n" + u.Paint(ui.Bold, box))
 }
 
 func aptInstall(ctx context.Context) error {
@@ -456,6 +471,9 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 	cur, _, _ := oscmd.Run(ctx, 10*time.Second, "ufw", "status", "verbose")
 	have := facts.ParseUFW(cur)
 	want := check.MergePorts([]int{sshPort, 22}, keep)
+	if keepStreetOff(state.Load()) {
+		want = withoutPorts(want, []int{sshPort, 22})
+	}
 	if listening(snap, 80) || listening(snap, 443) {
 		want = check.MergePorts(want, []int{80, 443})
 	}
@@ -495,10 +513,15 @@ func setupUFW(ctx context.Context, sshPort int, snap facts.Snapshot, panel int, 
 		}
 	}
 	if !have.Active {
-		_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "allow", "OpenSSH")
+		if !keepStreetOff(state.Load()) {
+			_, _, _ = oscmd.Run(ctx, 20*time.Second, "ufw", "allow", "OpenSSH")
+		}
 		if _, _, err := oscmd.Run(ctx, 20*time.Second, "ufw", "--force", "enable"); err != nil {
 			return err
 		}
+	}
+	if keepStreetOff(state.Load()) {
+		closeStreetUFW(ctx, sshPort)
 	}
 	ensureSSHListener(ctx)
 	out, _, _ := oscmd.Run(ctx, 10*time.Second, "ufw", "status")
@@ -580,6 +603,9 @@ func leftoverPublicPorts(snap facts.Snapshot, already []int, proto string, skip 
 			continue
 		}
 		if check.IsDBPort(p.Port) || have[p.Port] {
+			continue
+		}
+		if p.NetBird() && (p.Port == 22 || p.Port == 22022) {
 			continue
 		}
 		have[p.Port] = true
@@ -1255,6 +1281,13 @@ func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	_, _, _ = oscmd.Run(ctx, 15*time.Second, "systemctl", "reload", "fail2ban")
 	_ = restored
 	st := state.Load()
+	wasStreetOff := st.StreetSSHOff
+	if wasStreetOff {
+		restoreStreetSSH(ctx, st.SSHPort)
+		st.StreetSSHOff = false
+	} else {
+		forceSSHListener(ctx)
+	}
 	st.SSHLocked = sshEffectiveLocked(ctx)
 	snap := facts.Collect(ctx, hi)
 	fs := check.Run(snap, st.SiteAllowed, st.HasProtect, st.KeepPorts)
@@ -1262,6 +1295,9 @@ func Undo(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	st.Motd = report.Motd(fs)
 	_ = state.Save(st)
 	u.Println("Откат сделан. Проверьте вход.")
+	if wasStreetOff {
+		u.Println("Обычную службу входа с улицы вернул.")
+	}
 	if st.SSHLocked {
 		u.Println("Вход по паролю SSH по-прежнему выключен — как в снимке.")
 	} else {
@@ -1403,6 +1439,9 @@ func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
 	if !allowUsersApplied(snap.SSH.AllowUsers, wantUsers) {
 		return false
 	}
+	if streetNeedsWork(st, snap) {
+		return false
+	}
 	return samePorts(st.KeepPorts, keep)
 }
 
@@ -1412,6 +1451,9 @@ func firewallGaps(snap facts.Snapshot) bool {
 	}
 	for _, p := range snap.Ports {
 		if !p.Public() || check.IsDBPort(p.Port) {
+			continue
+		}
+		if p.NetBird() && (p.Port == 22 || p.Port == 22022) {
 			continue
 		}
 		proto := p.Proto

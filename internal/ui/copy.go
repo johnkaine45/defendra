@@ -30,6 +30,8 @@ func MenuAfter(level string) string {
 		body += "  sudo defendra protect        дожать защиту\n"
 	}
 	body += `  sudo defendra allow-site     открыть сайт (порты 80 и 443)
+  sudo defendra netbird        вход только через NetBird
+  sudo defendra street         вернуть обычный вход с улицы
   sudo defendra update         новая версия программы
   defendra how-to-login        как заходить
   defendra help                если не входит, нет сайта, забыли пароль
@@ -49,16 +51,19 @@ func Help() string {
   Если не выходит: консоль в панели хостера (VNC / «консоль в браузере»),
   пароль root ИЗ ПИСЬМА хостера (буквы не видны — так и надо),
   затем: sudo defendra undo
-  Дальше с компьютера: ssh admin@IP с ключом. Root по SSH не открываем.
+  Дальше с компьютера: ssh admin@IP с ключом.   Root по SSH не открываем.
+
 
 Буквы пароля не печатаются
   Так и должно быть. Вводите вслепую и нажмите Enter.
+
 
 Какой из двух паролей
   Войти по SSH                 пароль НЕ нужен, только ключ
   Команда sudo на сервере      пароль, который показала Defendra
   Консоль в браузере у хостера пароль root из письма хостера
                                его Defendra не меняла
+
 
 Забыли пароль для sudo
   SSH при этом работает. Сервер не потерян.
@@ -69,10 +74,12 @@ func Help() string {
     passwd admin
   Два раза новый пароль, буквы снова не видны.
 
+
 Сайт не открывается
   Не выключайте фильтр. На сервере:
     sudo defendra allow-site
   Если страницы ещё нет — сначала поставьте nginx или caddy.
+
 
 База видна из интернета, хотя фильтр включён
   Часто это Docker: контейнер сам пробросил порт наружу.
@@ -84,6 +91,18 @@ func Help() string {
     sudo defendra update
   Программа сама скачает новую версию, проверит файл и что внутри
   именно Defendra, и поставит. Вход и сайт не сбросятся. Старую не ставит.
+
+Вход через NetBird
+  Выключить обычную службу входа с улицы:
+    sudo defendra netbird
+  --yes это не делает. Enter — оставить как есть.
+  С публичного адреса зайти будет нельзя.
+  На своём компьютере NetBird тоже должен быть включён.
+
+  Вернуть обычную службу входа:
+    sudo defendra street
+  Вход через NetBird при этом останется.
+  Если NetBird пропал — повторный protect сам вернёт обычный вход.
 
 protect --yes не закрыл пароль SSH
   Есть другой пользователь, который входит только по паролю.
@@ -122,42 +141,66 @@ protect --yes не закрыл пароль SSH
 `
 }
 
+type LoginHint struct {
+	IP, User, NetBirdIP  string
+	SSHLocked, StreetOff bool
+}
+
 func HowToLogin(ip, user string, sshLocked bool) string {
+	return FormatHowToLogin(LoginHint{IP: ip, User: user, SSHLocked: sshLocked})
+}
+
+func FormatHowToLogin(h LoginHint) string {
+	ip := h.IP
 	if ip == "" {
 		ip = "IP_СЕРВЕРА"
 	}
+	user := h.User
 	if user == "" {
 		user = "admin"
 	}
 	body := "Как заходить на сервер\n\n"
-	if sshLocked {
+	if h.StreetOff {
+		nb := h.NetBirdIP
+		if nb == "" {
+			nb = "АДРЕС_NETBIRD"
+		}
+		body += "Обычный вход с улицы выключен.\n"
+		body += "Заходите через NetBird. На своём компьютере он тоже должен быть включён.\n\n"
+		body += "  ssh " + user + "@" + nb + "\n\n"
+		body += "или:\n\n"
+		body += "  netbird ssh " + user + "@" + nb + "\n\n"
+		body += "С публичного адреса сервера зайти нельзя.\n"
+		body += "Вернуть обычный вход:  sudo defendra street\n\n"
+	} else if h.SSHLocked {
 		body += "Вход только по ключу, пользователь " + user + ":\n\n"
 		body += "  ssh " + user + "@" + ip + "\n\n"
-		body += "Пароль SSH выключен. Если Permission denied — это не тот ключ или другой компьютер.\n\n"
+		body += "Пароль SSH выключен.\n"
+		body += "Permission denied — не тот ключ или другой компьютер.\n\n"
 	} else {
-		body += "Пока можно входить как раньше (пароль ещё работает).\n"
-		body += "Чтобы закрыть пароль, нужен ключ и снова: sudo defendra protect\n\n"
+		body += "Пока можно входить как раньше (пароль ещё работает).\n\n"
+		body += "Чтобы закрыть пароль, нужен ключ и снова:\n\n"
+		body += "  sudo defendra protect\n\n"
 	}
-	body += `Какой пароль для чего
-
-  Войти по SSH с компьютера     пароль НЕ нужен, только ключ
-  Команда sudo на сервере       пароль, который показала Defendra
-                                (запишите в блокнот, не в Telegram)
-  Консоль в браузере у хостера  пароль root ИЗ ПИСЬМА хостера
-                                его Defendra не меняла
-
+	body += PasswordRoles()
+	body += `
 Забыли пароль для sudo
+
   Консоль хостера, вход как root (пароль из письма), затем:
+
     defendra password
 
 Не входите с компьютера?
 
-1. Откройте панель хостера (сайт, где покупали сервер).
-2. Найдите «консоль», «VNC», «KVM», «browser console».
-3. Войдите как root, пароль ИЗ ПИСЬМА хостера (буквы снова не видны).
-4. Выполните:  sudo defendra undo
-5. С компьютера:  ssh ` + user + `@` + ip + `   с того компьютера, где ключ.
-   Root по SSH после защиты закрыт — так и задумано. Вы уже в консоли хостера, сервер не потерян.
+  1. Панель хостера — «консоль», VNC или KVM.
+  2. Войдите как root, пароль из письма (буквы не видны).
+  3. Команда:  sudo defendra undo
+  4. С компьютера, где ключ, после отката:
+
+    ssh ` + user + `@` + ip + `
+
+  Root по SSH после защиты закрыт. Вы уже в консоли хостера —
+  сервер не потерян.
 `
 	return body
 }

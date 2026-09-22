@@ -14,21 +14,23 @@ import (
 const Dir = "/var/lib/defendra"
 
 type State struct {
-	ProtectedAt *time.Time `json:"protected_at,omitempty"`
-	User        string     `json:"user"`
-	SSHLocked   bool       `json:"ssh_locked"`
-	SiteAllowed bool       `json:"site_allowed"`
-	PanelPort   int        `json:"panel_port,omitempty"`
-	PublicIP    string     `json:"public_ip,omitempty"`
-	SSHPort     int        `json:"ssh_port"`
-	Level       string     `json:"level"`
-	Motd        string     `json:"motd"`
-	KeepPorts   []int      `json:"keep_ports,omitempty"`
-	SSHUsers    []string   `json:"ssh_users,omitempty"`
-	HasProtect  bool       `json:"has_protect"`
+	ProtectedAt  *time.Time `json:"protected_at,omitempty"`
+	User         string     `json:"user"`
+	SSHLocked    bool       `json:"ssh_locked"`
+	SiteAllowed  bool       `json:"site_allowed"`
+	PanelPort    int        `json:"panel_port,omitempty"`
+	PublicIP     string     `json:"public_ip,omitempty"`
+	SSHPort      int        `json:"ssh_port"`
+	Level        string     `json:"level"`
+	Motd         string     `json:"motd"`
+	KeepPorts    []int      `json:"keep_ports,omitempty"`
+	SSHUsers     []string   `json:"ssh_users,omitempty"`
+	HasProtect   bool       `json:"has_protect"`
+	StreetSSHOff bool       `json:"street_ssh_off,omitempty"`
+	NetBirdIP    string     `json:"netbird_ip,omitempty"`
 }
 
-func Path() string        { return filepath.Join(Dir, "state.json") }
+func Path() string { return filepath.Join(Dir, "state.json") }
 
 func Saved() bool {
 	_, err := os.Stat(Path())

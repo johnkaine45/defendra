@@ -52,6 +52,20 @@ func TestLeftoverPublicPortsKeepsAppSkipsDBAndPanel(t *testing.T) {
 	}
 }
 
+func TestLeftoverSkipsNetBirdStreet(t *testing.T) {
+	snap := facts.Snapshot{
+		Ports: []facts.Listen{
+			{Proto: "tcp", Addr: "100.64.1.1", Port: 22022, Process: "netbird"},
+			{Proto: "tcp", Addr: "100.64.1.1", Port: 22, Process: "netbird"},
+			{Proto: "tcp", Addr: "0.0.0.0", Port: 8080, Process: "node"},
+		},
+	}
+	got := leftoverPublicPorts(snap, nil, "tcp", nil)
+	if len(got) != 1 || got[0] != 8080 {
+		t.Fatalf("leftover %v", got)
+	}
+}
+
 func TestLeftoverPublicUDP(t *testing.T) {
 	snap := facts.Snapshot{
 		Ports: []facts.Listen{

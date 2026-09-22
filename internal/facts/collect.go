@@ -40,6 +40,9 @@ func collect(ctx context.Context, hi host.Info, extra bool) Snapshot {
 	}
 	s.Host.PublicIP = firstPublicIP(ctx)
 	s.SSH = collectSSH(ctx)
+	s.SSH.ListenerKnown = true
+	s.SSH.ListenerActive = collectSSHListener(ctx)
+	s.NetBird = collectNetBird(ctx)
 	if s.Host.SSHPort == 0 {
 		if s.SSH.Port != 0 {
 			s.Host.SSHPort = s.SSH.Port
@@ -380,6 +383,9 @@ func pickPublicIP(ips []string) string {
 			if v6 == "" {
 				v6 = ip
 			}
+			continue
+		}
+		if meshIPv4(ip) {
 			continue
 		}
 		return ip

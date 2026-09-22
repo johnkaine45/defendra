@@ -95,7 +95,25 @@ func sshChecks(s facts.Snapshot) []Finding {
 		est, eplain = Fail, "Разрешены пустые пароли SSH. Так зайти может кто угодно."
 	}
 	a = append(a, f("SSH-EMPTY-PASS", "Пустые пароли SSH", SevCritical, est, eplain, "protect", true, nil, s.SSH.EmptyPasswords))
+	a = append(a, streetCheck(s))
 	return a
+}
+
+func streetCheck(s facts.Snapshot) Finding {
+	if !s.SSH.ListenerKnown {
+		return f("SSH-STREET", "Обычный вход с улицы", SevInfo, Skipped, "Службу входа ещё не проверяли.", "none", false, nil, nil)
+	}
+	if s.SSH.ListenerActive {
+		plain := "Обычная служба входа с улицы работает."
+		if s.NetBird.Ready() {
+			plain = "Обычный вход с улицы ещё работает. Вход через NetBird тоже есть — его можно оставить единственным: sudo defendra netbird"
+		}
+		return f("SSH-STREET", "Обычный вход с улицы", SevInfo, Pass, plain, "protect", true, nil, s.SSH.ListenerActive)
+	}
+	if s.NetBird.Ready() {
+		return f("SSH-STREET", "Обычный вход с улицы", SevInfo, Pass, "Обычная служба входа выключена. Заходите через NetBird.", "none", false, nil, false)
+	}
+	return f("SSH-STREET", "Обычный вход с улицы", SevCritical, Fail, "Служба входа выключена, а вход через NetBird не работает. Так можно потерять доступ.", "protect", true, nil, false)
 }
 
 func fwChecks(s facts.Snapshot, siteAllowed bool) []Finding {
@@ -107,7 +125,11 @@ func fwChecks(s facts.Snapshot, siteAllowed bool) []Finding {
 
 	sst, splain := Pass, "Порт входа разрешён в фильтре."
 	if s.Firewall.Active && !s.Firewall.AllowsPort(s.Host.SSHPort) {
-		sst, splain = Fail, "Фильтр включён, но порт входа не разрешён. Так можно потерять доступ."
+		if s.NetBird.Ready() && s.SSH.ListenerKnown && !s.SSH.ListenerActive {
+			sst, splain = Pass, "Порт входа с улицы закрыт. Заходите через NetBird."
+		} else {
+			sst, splain = Fail, "Фильтр включён, но порт входа не разрешён. Так можно потерять доступ."
+		}
 	}
 	if !s.Firewall.Active {
 		sst = Skipped
@@ -180,6 +202,9 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 			if dbPorts[p.Port] != "" {
 				continue
 			}
+			if skipNetBirdStreet(p) {
+				continue
+			}
 			if expected[p.Port] && proto == "tcp" {
 				continue
 			}
@@ -208,6 +233,13 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 		out = append(out, f("NET-UNEXPECTED-PORT", "Новый порт с улицы", SevInfo, Skipped, "Ещё нет эталона после настройки.", "none", false, nil, nil))
 	}
 	return out
+}
+
+func skipNetBirdStreet(p facts.Listen) bool {
+	if !p.NetBird() {
+		return false
+	}
+	return p.Port == 22 || p.Port == 22022
 }
 
 func dockerish(proc string) bool {

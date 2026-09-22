@@ -120,6 +120,31 @@ func TestAlreadyQuietUDPGap(t *testing.T) {
 	}
 }
 
+func TestAlreadyQuietNetBirdOffer(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", ListenerKnown: true, ListenerActive: true},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+		NetBird:  facts.NetBirdFact{Installed: true, Connected: true, SSHEnabled: true},
+	}
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("street-off is a separate command, protect stays quiet")
+	}
+	st.StreetSSHOff = true
+	snap.SSH.ListenerActive = false
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("street already off should stay quiet")
+	}
+	snap.NetBird.Connected = false
+	snap.NetBird.SSHEnabled = false
+	if alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("lost NetBird must restore street SSH")
+	}
+}
+
 func TestSkipQuestions(t *testing.T) {
 	if !skipQuestions(Options{DryRun: true}) || !skipQuestions(Options{Yes: true}) {
 		t.Fatal("dry-run and --yes must not ask")

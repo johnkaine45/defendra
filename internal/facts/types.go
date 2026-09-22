@@ -20,6 +20,7 @@ type Snapshot struct {
 	Perms       []FilePerm        `json:"perms"`
 	Sudo        SudoFact          `json:"sudo"`
 	SUID        []string          `json:"suid"`
+	NetBird     NetBirdFact       `json:"netbird,omitempty"`
 }
 
 type HostFact struct {
@@ -45,6 +46,21 @@ type SSHFact struct {
 	Port            int      `json:"port"`
 	ConfigOK        bool     `json:"config_ok"`
 	ConfigError     string   `json:"config_error,omitempty"`
+	ListenerKnown   bool     `json:"listener_known,omitempty"`
+	ListenerActive  bool     `json:"listener_active,omitempty"`
+}
+
+type NetBirdFact struct {
+	Installed  bool   `json:"installed"`
+	Running    bool   `json:"running"`
+	Connected  bool   `json:"connected"`
+	SSHEnabled bool   `json:"ssh_enabled"`
+	SSHKnown   bool   `json:"ssh_known,omitempty"`
+	IP         string `json:"ip,omitempty"`
+}
+
+func (n NetBirdFact) Ready() bool {
+	return n.Installed && n.Connected && n.SSHEnabled
 }
 
 type User struct {
@@ -82,6 +98,10 @@ func (l Listen) Public() bool {
 		return false
 	}
 	return true
+}
+
+func (l Listen) NetBird() bool {
+	return strings.Contains(strings.ToLower(l.Process), "netbird")
 }
 
 type Firewall struct {

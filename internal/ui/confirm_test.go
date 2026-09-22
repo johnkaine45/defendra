@@ -48,6 +48,31 @@ func TestConfirmNoPrompt(t *testing.T) {
 	}
 }
 
+func TestConfirmStrictEnterKeeps(t *testing.T) {
+	u := New(strings.NewReader("\n"), io.Discard, io.Discard)
+	ok, err := u.ConfirmStrict("?")
+	if err != nil || ok {
+		t.Fatalf("enter: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestConfirmStrictDa(t *testing.T) {
+	u := New(strings.NewReader("да\n"), io.Discard, io.Discard)
+	ok, err := u.ConfirmStrict("?")
+	if err != nil || !ok {
+		t.Fatalf("да: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestConfirmStrictNoPromptNever(t *testing.T) {
+	u := New(strings.NewReader("да\n"), io.Discard, io.Discard)
+	u.NoPrompt = true
+	ok, err := u.ConfirmStrict("?")
+	if err != nil || ok {
+		t.Fatalf("noprompt must not disable street: ok=%v err=%v", ok, err)
+	}
+}
+
 func TestConfirmWritesQuestion(t *testing.T) {
 	var out bytes.Buffer
 	u := New(strings.NewReader("\n"), &out, io.Discard)

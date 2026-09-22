@@ -59,6 +59,31 @@ func TestPrettyAllows(t *testing.T) {
 	}
 }
 
+func TestLevelStreetIsRed(t *testing.T) {
+	fs := []check.Finding{
+		{ID: "SSH-STREET", Status: check.Fail, Severity: check.SevCritical},
+	}
+	if Level(fs) != "red" {
+		t.Fatalf("got %s", Level(fs))
+	}
+}
+
+func TestStatusTextNetBird(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:      facts.SSHFact{ListenerKnown: true, ListenerActive: false},
+		NetBird:  facts.NetBirdFact{Installed: true, Connected: true, SSHEnabled: true, IP: "100.64.9.9"},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Firewall: facts.Firewall{Active: true},
+	}
+	txt := StatusText(s, nil, "195.58.153.30", "admin")
+	if !strings.Contains(txt, "через NetBird") {
+		t.Fatal(txt)
+	}
+	if !strings.Contains(txt, "ssh admin@100.64.9.9") {
+		t.Fatal(txt)
+	}
+}
+
 func TestLevelSSHMissingIsRed(t *testing.T) {
 	fs := []check.Finding{
 		{ID: "FW-SSH-MISSING", Status: check.Fail, Severity: check.SevCritical},
