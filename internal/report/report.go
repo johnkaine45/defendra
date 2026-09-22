@@ -138,9 +138,11 @@ func StatusText(s facts.Snapshot, fs []check.Finding, ip, user string) string {
 	b.WriteString("  Вход           " + entry + ", пользователь " + user + "\n")
 	fw := "выключен"
 	if s.Firewall.Active {
-		fw = "включён, снаружи: " + strings.Join(s.Firewall.Allows, ", ")
-		if fw == "включён, снаружи: " {
+		shown := prettyAllows(s.Firewall.Allows)
+		if shown == "" {
 			fw = "включён"
+		} else {
+			fw = "включён, снаружи: " + shown
 		}
 	}
 	b.WriteString("  Фильтр         " + fw + "\n")
@@ -199,6 +201,28 @@ func yesSSHPassword(fs []check.Finding) bool {
 		}
 	}
 	return false
+}
+
+func prettyAllows(allows []string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, a := range allows {
+		a = strings.TrimSpace(a)
+		if a == "" {
+			continue
+		}
+		if n, rest, ok := strings.Cut(a, "/"); ok {
+			if rest == "tcp" {
+				a = n
+			}
+		}
+		if seen[a] {
+			continue
+		}
+		seen[a] = true
+		out = append(out, a)
+	}
+	return strings.Join(out, ", ")
 }
 
 func dbExposed(fs []check.Finding) bool {

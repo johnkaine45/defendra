@@ -52,6 +52,13 @@ func TestStatusTextPlural(t *testing.T) {
 	}
 }
 
+func TestPrettyAllows(t *testing.T) {
+	got := prettyAllows([]string{"22/tcp", "80/tcp", "443/tcp", "51820/udp", "22/tcp"})
+	if got != "22, 80, 443, 51820/udp" {
+		t.Fatal(got)
+	}
+}
+
 func TestLevelDBIsRed(t *testing.T) {
 	fs := []check.Finding{
 		{ID: "NET-DB-EXPOSED", Status: check.Fail, Severity: check.SevHigh},
