@@ -1,6 +1,7 @@
 package check
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/johnkaine/defendra/internal/facts"
@@ -132,6 +133,33 @@ func TestShadowWorldReadable(t *testing.T) {
 	for _, f := range fs {
 		if f.ID == "PERM-SHADOW" && f.Status != Fail {
 			t.Fatalf("%+v", f)
+		}
+	}
+}
+
+func TestUnexpectedPortDedupesIPv6(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:  facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no"},
+		Host: facts.HostFact{SSHPort: 22},
+		Ports: []facts.Listen{
+			{Addr: "0.0.0.0", Port: 8080, Proto: "tcp", Process: "docker-proxy"},
+			{Addr: "::", Port: 8080, Proto: "tcp", Process: "docker-proxy"},
+		},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{Unattended: true, UnattendedEnabled: true},
+		Sysctl:   map[string]string{"net.ipv4.tcp_syncookies": "1"},
+		Users:    []facts.User{{Name: "admin", UID: 1000, Sudo: true, HasKeys: true}},
+	}
+	fs := Run(s, true, true, nil)
+	for _, f := range fs {
+		if f.ID == "NET-UNEXPECTED-PORT" {
+			if f.Status != Fail {
+				t.Fatalf("%+v", f)
+			}
+			if strings.Contains(f.Plain, "8080, 8080") {
+				t.Fatalf("duplicated port: %s", f.Plain)
+			}
 		}
 	}
 }
