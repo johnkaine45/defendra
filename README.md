@@ -92,7 +92,7 @@ sudo defendra allow-site
 ## Как выглядит статус
 
 <p align="center">
-  <img src="docs/status.svg" width="720" alt="sudo defendra status — порядок">
+  <img src="docs/status.png" width="720" alt="sudo defendra status — порядок">
 </p>
 
 Три слова вместо светофора: **порядок** / **не полностью** / **опасно**. Одна причина, одна команда. Повторный `protect` на уже закрытом сервере пишет «проверил, менять нечего» и не гоняет девять шагов.
