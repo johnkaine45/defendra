@@ -134,6 +134,7 @@ sudo defendra update
 | `sudo defendra allow-port` | Открыть свой порт. Это слабое место, нужно явно «да» |
 | `sudo defendra update` | Новая версия программы |
 | `sudo defendra undo` | Откатить последний protect |
+| `sudo defendra uninstall` | Убрать программу с сервера |
 | `defendra how-to-login` | Как заходить, два пароля, консоль хостера |
 | `defendra help` | FAQ: не вхожу, забыли пароль, нет сайта |
 | `sudo defendra password` | Показать пароль sudo, если забыли |

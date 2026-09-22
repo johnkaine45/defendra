@@ -70,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.34_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, ставим вместо неё ссылку на `/usr/bin/defendra`. Старый `update` после установки ещё раз удалял этот путь — поэтому любая команда от root заново ставит ссылку, не только `update`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.35_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Если рядом лежит старая копия в `/usr/local/bin/defendra`, ставим вместо неё ссылку на `/usr/bin/defendra`. Старый `update` после установки ещё раз удалял этот путь — поэтому любая команда от root заново ставит ссылку, не только `update`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
 
 ## 4. Как это выглядит для пользователя
 
@@ -117,6 +117,7 @@ sudo defendra protect
 | `sudo defendra allow-site` | Открыть сайту 80 и 443, не выключая защиту. |
 | `sudo defendra allow-port` | Открыть один свой порт. Enter = не открывать. Базы и `--yes` не открывает. |
 | `sudo defendra update` | Скачать новую версию с GitHub, сверить SHA256 и имя пакета, поставить `.deb`. Не откатывает на старую. |
+| `sudo defendra uninstall` | Убрать программу с сервера. Enter = оставить. Admin и пакеты фильтра не трогает. |
 | `defendra how-to-login` | Как заходить, два пароля, ритуал второго окна, консоль хостера. |
 
 Команды не для главного экрана: `scan`, `explain`, `--dry-run`, `--yes`, `--format json`, `version`. В меню новичка их нет.
@@ -129,6 +130,7 @@ sudo defendra protect
 | `sudo defendra protect --yes` | Без вопроса, для скриптов. Enter в обычном режиме = да. Если нет ключа — всё равно отказ на шаг «закрыть пароль». |
 | `sudo defendra allow-site --dry-run` | Показать правила UFW, ничего не менять. |
 | `sudo defendra allow-port --dry-run` | Показать, какой порт открыли бы. `--yes` порт не открывает. |
+| `sudo defendra uninstall --dry-run` | Показать, что сняли бы. `--yes` не удаляет. |
 | `sudo defendra scan --format json` | Для нас и для автоматизации, не для главного экрана. |
 | `sudo defendra version` | Версия. |
 

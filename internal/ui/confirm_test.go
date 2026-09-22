@@ -102,6 +102,26 @@ func TestConfirmDangerNoPromptNever(t *testing.T) {
 	}
 }
 
+func TestConfirmRemoveEnterKeeps(t *testing.T) {
+	u := New(strings.NewReader("\n"), io.Discard, io.Discard)
+	ok, err := u.ConfirmRemove("?")
+	if err != nil || ok {
+		t.Fatalf("enter: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestConfirmRemoveDa(t *testing.T) {
+	var out bytes.Buffer
+	u := New(strings.NewReader("да\n"), &out, io.Discard)
+	ok, err := u.ConfirmRemove("Уберу Defendra")
+	if err != nil || !ok {
+		t.Fatalf("да: ok=%v err=%v", ok, err)
+	}
+	if !strings.Contains(out.String(), "Напишите да — убрать") {
+		t.Fatal(out.String())
+	}
+}
+
 func TestConfirmWritesQuestion(t *testing.T) {
 	var out bytes.Buffer
 	u := New(strings.NewReader("\n"), &out, io.Discard)

@@ -99,6 +99,9 @@ func TestHelpCopy(t *testing.T) {
 	if !strings.Contains(h, "sudo defendra allow-port") {
 		t.Fatal("help missing allow-port")
 	}
+	if !strings.Contains(h, "sudo defendra uninstall") {
+		t.Fatal("help missing uninstall")
+	}
 	if !strings.Contains(h, "--yes этот шаг не делает") {
 		t.Fatal("help missing allow-port --yes warning")
 	}
@@ -119,6 +122,9 @@ func TestMenuAfterHasNetBird(t *testing.T) {
 		t.Fatal(m)
 	}
 	if !strings.Contains(m, "sudo defendra allow-port") {
+		t.Fatal(m)
+	}
+	if !strings.Contains(m, "sudo defendra uninstall") {
 		t.Fatal(m)
 	}
 	if !strings.Contains(m, "слабое место") {

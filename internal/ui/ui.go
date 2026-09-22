@@ -93,6 +93,10 @@ func (u *IO) ConfirmDanger(question string) (bool, error) {
 	return u.confirmTyped(question, "Напишите да — открыть.  Enter — не открывать.")
 }
 
+func (u *IO) ConfirmRemove(question string) (bool, error) {
+	return u.confirmTyped(question, "Напишите да — убрать.  Enter — оставить.")
+}
+
 func (u *IO) confirmTyped(question, hint string) (bool, error) {
 	if u.NoPrompt {
 		return false, nil

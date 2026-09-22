@@ -53,7 +53,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		update.FixCommandPath()
 	}
 
-	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "allow-port" || cmd == "undo" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
+	needRoot := cmd == "protect" || cmd == "status" || cmd == "scan" || cmd == "allow-site" || cmd == "allow-port" || cmd == "undo" || cmd == "uninstall" || cmd == "watch" || cmd == "explain" || cmd == "password" || cmd == "update" || cmd == "netbird" || cmd == "street"
 	if needRoot {
 		if !hi.Root {
 			u.Print(ui.NeedSudo(cmd))
@@ -63,9 +63,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			u.Print(ui.NotUbuntu(hi.Pretty))
 			return 2
 		}
-		asks := cmd == "protect" || cmd == "undo" || cmd == "allow-site" || cmd == "allow-port" || cmd == "update" || cmd == "netbird" || cmd == "street"
+		asks := cmd == "protect" || cmd == "undo" || cmd == "uninstall" || cmd == "allow-site" || cmd == "allow-port" || cmd == "update" || cmd == "netbird" || cmd == "street"
 		if asks && !flags.yes && !flags.dry && !isTTY(stdin) {
-			if cmd == "netbird" || cmd == "allow-port" {
+			if cmd == "netbird" || cmd == "allow-port" || cmd == "uninstall" {
 				u.Println("Без окна терминала не спрашиваю. Запустите в терминале:\n\n  sudo defendra " + cmd)
 				return 2
 			}
@@ -112,6 +112,10 @@ Defendra для облачного сервера. Здесь запускать
 	case "undo":
 		code := protect.Undo(ctx, hi, u, flags.yes, flags.dry)
 		audit.Event("undo", exitWord(code), "")
+		return code
+	case "uninstall":
+		code := protect.Uninstall(ctx, hi, u, flags.yes, flags.dry)
+		audit.Event("uninstall", exitWord(code), "")
 		return code
 	case "watch":
 		return protect.Watch(ctx, hi)

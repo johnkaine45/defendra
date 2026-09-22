@@ -153,8 +153,18 @@ func RestoreLast() ([]string, error) {
 // CreatedByUs is true for files Defendra itself writes. Undo may delete them
 // only when the snapshot recorded that they did not exist before protect.
 func CreatedByUs(p string) bool {
-	switch p {
-	case "/etc/ssh/sshd_config.d/00-defendra.conf",
+	for _, ours := range OurFiles() {
+		if p == ours {
+			return true
+		}
+	}
+	return false
+}
+
+// OurFiles lists drop-ins and units Defendra itself writes.
+func OurFiles() []string {
+	return []string{
+		"/etc/ssh/sshd_config.d/00-defendra.conf",
 		"/etc/ssh/sshd_config.d/99-defendra.conf",
 		"/etc/sysctl.d/99-defendra.conf",
 		"/etc/fail2ban/jail.d/defendra.conf",
@@ -162,10 +172,9 @@ func CreatedByUs(p string) bool {
 		"/etc/update-motd.d/99-defendra",
 		"/etc/apt/apt.conf.d/51defendra-unattended",
 		"/etc/systemd/system/defendra-watch.service",
-		"/etc/systemd/system/defendra-watch.timer":
-		return true
-	default:
-		return false
+		"/etc/systemd/system/defendra-watch.timer",
+		"/etc/mysql/mysql.conf.d/zz-defendra.cnf",
+		"/etc/mysql/conf.d/zz-defendra.cnf",
 	}
 }
 
