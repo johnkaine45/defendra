@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +36,7 @@ type Options struct {
 	Current     string
 	Arch        string
 	Install     func(ctx context.Context, debPath string) error
+	ReadDeb     func(path string) (pkg, ver string, err error)
 }
 
 func Run(ctx context.Context, opt Options) int {
@@ -58,7 +60,7 @@ func Run(ctx context.Context, opt Options) int {
 
 	u.Println("Смотрю, есть ли новая версия…")
 	latest, err := latestVersion(ctx, opt)
-	if err != nil {
+	if err != nil || !validReleaseVersion(latest) {
 		u.Println("Не получилось узнать новую версию. Сеть или сайт с программой. Попробуйте через 5 минут.")
 		return 2
 	}
@@ -104,10 +106,20 @@ func Run(ctx context.Context, opt Options) int {
 		return 2
 	}
 	u.Println("Проверяю файл…")
-	if err := verifyDeb(debPath, sumPath); err != nil {
+	if err := verifyDeb(debPath, sumPath, debName); err != nil {
 		u.Println("Файл с сайта не сошёлся. Не ставлю. Попробуйте позже.")
 		return 2
 	}
+	readDeb := opt.ReadDeb
+	if readDeb == nil {
+		readDeb = dpkgDebFields
+	}
+	pkg, ver, err := readDeb(debPath)
+	if err != nil || !packageLooksOurs(pkg, ver, latest) {
+		u.Println("В файле не та программа. Не ставлю.")
+		return 2
+	}
+	u.Println("Файл целый. Это пакет Defendra " + latest + ".")
 	u.Println("Ставлю…")
 	install := opt.Install
 	if install == nil {
@@ -144,11 +156,11 @@ func latestVersion(ctx context.Context, opt Options) (string, error) {
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 	if loc := resp.Header.Get("Location"); loc != "" {
-		if tag := tagFromLocation(loc); tag != "" {
+		if tag := tagFromLocation(loc); validReleaseVersion(tag) {
 			return tag, nil
 		}
 	}
-	if tag := tagFromLocation(resp.Request.URL.String()); tag != "" {
+	if tag := tagFromLocation(resp.Request.URL.String()); validReleaseVersion(tag) {
 		return tag, nil
 	}
 	return latestFromAPI(ctx, opt)
@@ -181,8 +193,8 @@ func latestFromAPI(ctx context.Context, opt Options) (string, error) {
 		return "", err
 	}
 	tag := strings.TrimPrefix(strings.TrimSpace(doc.Tag), "v")
-	if tag == "" {
-		return "", fmt.Errorf("empty tag")
+	if !validReleaseVersion(tag) {
+		return "", fmt.Errorf("bad tag")
 	}
 	return tag, nil
 }
@@ -199,13 +211,58 @@ func lookupClient(opt Options) *http.Client {
 }
 
 func downloadClient(opt Options) *http.Client {
-	if opt.Client != nil {
-		return opt.Client
+	base := opt.Client
+	timeout := 2 * time.Minute
+	var tr http.RoundTripper
+	if base != nil {
+		tr = base.Transport
+		if base.Timeout > 0 {
+			timeout = base.Timeout
+		}
 	}
-	return &http.Client{Timeout: 2 * time.Minute}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			if req.URL != nil && !hostAllowed(opt, req.URL.Host) {
+				return fmt.Errorf("unexpected host")
+			}
+			return nil
+		},
+	}
+}
+
+func hostAllowed(opt Options, host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if h, _, ok := strings.Cut(host, ":"); ok {
+		host = h
+	}
+	if host == "github.com" || host == "api.github.com" || strings.HasSuffix(host, ".githubusercontent.com") {
+		return true
+	}
+	if opt.Repo != "" && opt.Repo != defaultRepo {
+		u, err := url.Parse(opt.Repo)
+		if err == nil && strings.EqualFold(u.Hostname(), host) {
+			return true
+		}
+	}
+	if opt.API != "" && opt.API != defaultAPI {
+		u, err := url.Parse(opt.API)
+		if err == nil && strings.EqualFold(u.Hostname(), host) {
+			return true
+		}
+	}
+	return false
 }
 
 func downloadFile(ctx context.Context, opt Options, rawURL, dest string, limit int64) error {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || !hostAllowed(opt, u.Host) {
+		return fmt.Errorf("bad url")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
@@ -234,10 +291,13 @@ func downloadFile(ctx context.Context, opt Options, rawURL, dest string, limit i
 	return nil
 }
 
-func verifyDeb(debPath, sumPath string) error {
-	want, err := parseChecksumFile(sumPath)
+func verifyDeb(debPath, sumPath, debName string) error {
+	want, name, err := parseChecksumFile(sumPath)
 	if err != nil {
 		return err
+	}
+	if name != "" && name != debName && name != "*"+debName {
+		return fmt.Errorf("checksum name")
 	}
 	b, err := os.ReadFile(debPath)
 	if err != nil {
@@ -251,15 +311,15 @@ func verifyDeb(debPath, sumPath string) error {
 	return nil
 }
 
-func parseChecksumFile(path string) (string, error) {
+func parseChecksumFile(path string) (string, string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	return parseChecksum(string(b))
 }
 
-func parseChecksum(s string) (string, error) {
+func parseChecksum(s string) (string, string, error) {
 	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -271,16 +331,75 @@ func parseChecksum(s string) (string, error) {
 		}
 		h := strings.ToLower(fields[0])
 		if len(h) != 64 {
-			return "", fmt.Errorf("bad checksum")
+			return "", "", fmt.Errorf("bad checksum")
 		}
 		for _, c := range h {
 			if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-				return "", fmt.Errorf("bad checksum")
+				return "", "", fmt.Errorf("bad checksum")
 			}
 		}
-		return h, nil
+		name := ""
+		if len(fields) > 1 {
+			name = strings.TrimPrefix(fields[1], "*")
+			name = filepath.Base(name)
+		}
+		return h, name, nil
 	}
-	return "", fmt.Errorf("empty checksum")
+	return "", "", fmt.Errorf("empty checksum")
+}
+
+func validReleaseVersion(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" || len(s) > 32 {
+		return false
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 || len(parts) > 4 {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" || len(p) > 6 {
+			return false
+		}
+		for _, c := range p {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func packageLooksOurs(pkg, ver, wantVer string) bool {
+	return strings.EqualFold(strings.TrimSpace(pkg), "defendra") && strings.TrimPrefix(strings.TrimSpace(ver), "v") == wantVer
+}
+
+func dpkgDebFields(path string) (string, string, error) {
+	out, err := exec.Command("dpkg-deb", "-f", path).CombinedOutput()
+	if err != nil {
+		return "", "", err
+	}
+	pkg, ver := parseControl(string(out))
+	if pkg == "" || ver == "" {
+		return "", "", fmt.Errorf("empty control")
+	}
+	return pkg, ver, nil
+}
+
+func parseControl(s string) (pkg, ver string) {
+	for _, line := range strings.Split(s, "\n") {
+		k, v, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(k)) {
+		case "package":
+			pkg = strings.TrimSpace(v)
+		case "version":
+			ver = strings.TrimSpace(v)
+		}
+	}
+	return pkg, ver
 }
 
 func tagFromLocation(loc string) string {

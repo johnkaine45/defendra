@@ -46,12 +46,53 @@ func TestTagFromLocation(t *testing.T) {
 }
 
 func TestParseChecksum(t *testing.T) {
-	got, err := parseChecksum("d9ebd80058c9efdc609556af3efcd6287da83176590d2b99a19020589668c803  defendra_amd64.deb\n")
-	if err != nil || got != "d9ebd80058c9efdc609556af3efcd6287da83176590d2b99a19020589668c803" {
-		t.Fatal(got, err)
+	got, name, err := parseChecksum("d9ebd80058c9efdc609556af3efcd6287da83176590d2b99a19020589668c803  defendra_amd64.deb\n")
+	if err != nil || got != "d9ebd80058c9efdc609556af3efcd6287da83176590d2b99a19020589668c803" || name != "defendra_amd64.deb" {
+		t.Fatal(got, name, err)
 	}
-	if _, err := parseChecksum("short  file\n"); err == nil {
+	if _, _, err := parseChecksum("short  file\n"); err == nil {
 		t.Fatal("short")
+	}
+}
+
+func TestValidReleaseVersion(t *testing.T) {
+	if !validReleaseVersion("0.1.23") || !validReleaseVersion("1.0") {
+		t.Fatal("ok")
+	}
+	for _, s := range []string{"", "v0.1.23", "../../x", "0.1.23;rm", "abc", "1"} {
+		if validReleaseVersion(s) {
+			t.Fatalf("bad %q", s)
+		}
+	}
+}
+
+func TestPackageLooksOurs(t *testing.T) {
+	if !packageLooksOurs("defendra", "0.1.30", "0.1.30") {
+		t.Fatal("ok")
+	}
+	if packageLooksOurs("evil", "0.1.30", "0.1.30") || packageLooksOurs("defendra", "0.1.1", "0.1.30") {
+		t.Fatal("reject")
+	}
+}
+
+func TestParseControl(t *testing.T) {
+	pkg, ver := parseControl("Package: defendra\nVersion: 0.1.24\nArchitecture: amd64\n")
+	if pkg != "defendra" || ver != "0.1.24" {
+		t.Fatal(pkg, ver)
+	}
+}
+
+func TestHostAllowed(t *testing.T) {
+	opt := Options{}
+	if !hostAllowed(opt, "github.com") || !hostAllowed(opt, "objects.githubusercontent.com") {
+		t.Fatal("github")
+	}
+	if hostAllowed(opt, "evil.example") {
+		t.Fatal("evil")
+	}
+	opt.Repo = "http://127.0.0.1:1234"
+	if !hostAllowed(opt, "127.0.0.1") {
+		t.Fatal("test repo")
 	}
 }
 
@@ -123,6 +164,7 @@ func TestRunInstallsWhenNewer(t *testing.T) {
 		Repo:    srv.URL,
 		Current: "0.1.22",
 		Arch:    "amd64",
+		ReadDeb: func(string) (string, string, error) { return "defendra", "0.1.30", nil },
 		Install: func(_ context.Context, deb string) error {
 			got = deb
 			b, err := os.ReadFile(deb)
@@ -143,6 +185,55 @@ func TestRunInstallsWhenNewer(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Готово. Сейчас Defendra 0.1.30") {
 		t.Fatal(out.String())
+	}
+	if !strings.Contains(out.String(), "Это пакет Defendra 0.1.30") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestRunRejectsWrongPackage(t *testing.T) {
+	srv, _ := testReleaseServer(t, "0.1.30")
+	defer srv.Close()
+	var out bytes.Buffer
+	installed := false
+	code := Run(context.Background(), Options{
+		Yes:     true,
+		UI:      ui.New(strings.NewReader(""), &out, &out),
+		Client:  srv.Client(),
+		Repo:    srv.URL,
+		Current: "0.1.22",
+		Arch:    "amd64",
+		ReadDeb: func(string) (string, string, error) { return "evil", "0.1.30", nil },
+		Install: func(context.Context, string) error { installed = true; return nil },
+	})
+	if code != 2 || installed || !strings.Contains(out.String(), "не та программа") {
+		t.Fatal(code, installed, out.String())
+	}
+}
+
+func TestRunRejectsBadTag(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/releases/tag/v../../evil", http.StatusFound)
+	})
+	mux.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "no", 404)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	var out bytes.Buffer
+	code := Run(context.Background(), Options{
+		Yes:     true,
+		UI:      ui.New(strings.NewReader(""), &out, &out),
+		Client:  srv.Client(),
+		Repo:    srv.URL,
+		API:     srv.URL + "/api",
+		Current: "0.1.22",
+		Arch:    "amd64",
+		Install: func(context.Context, string) error { t.Fatal("install"); return nil },
+	})
+	if code != 2 || !strings.Contains(out.String(), "Не получилось узнать") {
+		t.Fatal(code, out.String())
 	}
 }
 
@@ -201,13 +292,13 @@ func TestVerifyDeb(t *testing.T) {
 	if err := os.WriteFile(sum, []byte(hex.EncodeToString(h[:])+"  x.deb\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifyDeb(deb, sum); err != nil {
+	if err := verifyDeb(deb, sum, "x.deb"); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(sum, []byte(strings.Repeat("0", 64)+"  x.deb\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifyDeb(deb, sum); err == nil {
+	if err := verifyDeb(deb, sum, "x.deb"); err == nil {
 		t.Fatal("mismatch")
 	}
 }

@@ -70,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.23_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub, сверка SHA256, `apt install` локального файла. Старую версию не ставит.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.24_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает. Обновление уже установленной утилиты — `sudo defendra update`: HTTPS на GitHub (и `*.githubusercontent.com`), номер версии только из цифр, сверка SHA256, внутри `.deb` пакет `defendra` той же версии, затем `apt install`. Старую версию не ставит. Подписи пакета в v1 нет: доверие — аккаунт релиза и checksum.
 
 ## 4. Как это выглядит для пользователя
 
@@ -115,7 +115,7 @@ sudo defendra protect
 | `sudo defendra status` | Всё ли в порядке, простыми словами. |
 | `sudo defendra undo` | Откатить последний `protect`. |
 | `sudo defendra allow-site` | Открыть сайту 80 и 443, не выключая защиту. |
-| `sudo defendra update` | Скачать новую версию с GitHub, сверить SHA256, поставить `.deb`. Не откатывает на старую. |
+| `sudo defendra update` | Скачать новую версию с GitHub, сверить SHA256 и имя пакета, поставить `.deb`. Не откатывает на старую. |
 | `defendra how-to-login` | Как заходить, два пароля, ритуал второго окна, консоль хостера. |
 
 Команды не для главного экрана: `scan`, `explain`, `--dry-run`, `--yes`, `--format json`, `version`. В меню новичка их нет.
