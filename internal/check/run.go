@@ -20,7 +20,7 @@ var dbPorts = map[int]string{
 }
 
 var suidAllow = map[string]bool{
-	"passwd": true, "sudo": true, "su": true, "newgrp": true, "mount": true, "umount": true,
+	"passwd": true, "sudo": true, "sudo.ws": true, "su": true, "newgrp": true, "mount": true, "umount": true,
 	"chsh": true, "chfn": true, "gpasswd": true, "fusermount": true, "fusermount3": true,
 	"pkexec": true, "ping": true, "ping6": true, "pppd": true, "ntfs-3g": true,
 	"dbus-daemon-launch-helper": true, "unix_chkpwd": true, "crontab": true, "ssh-keysign": true,

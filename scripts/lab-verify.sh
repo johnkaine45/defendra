@@ -36,15 +36,15 @@ pass() { echo "PASS  $1"; }
 bad() { echo "FAIL  $1"; fail=1; }
 
 echo "=== public ==="
-https_code="$(curl -skI --max-time 8 "https://195.58.153.30/" | tr -d '\r' | awk 'NR==1{print $2}')"
+https_code="$(curl -skI --max-time 8 "https://195.58.153.30/" 2>/dev/null | tr -d '\r' | awk 'NR==1{print $2}' || true)"
 if [[ "$https_code" == "200" ]]; then pass "https 443 → $https_code"
 elif [[ -z "$https_code" ]]; then echo "SKIP  https 443 (свежий VDS, сайта нет)"
 else bad "https 443 → $https_code"; fi
-shop_code="$(curl -sI --max-time 8 "http://195.58.153.30:8080/" | tr -d '\r' | awk 'NR==1{print $2}')"
+shop_code="$(curl -sI --max-time 8 "http://195.58.153.30:8080/" 2>/dev/null | tr -d '\r' | awk 'NR==1{print $2}' || true)"
 if [[ "$shop_code" == "200" ]]; then pass "shop 8080 → $shop_code"
 elif [[ -z "$shop_code" ]]; then echo "SKIP  shop 8080 (свежий VDS, сайта нет)"
 else bad "shop 8080 → $shop_code"; fi
-http_code="$(curl -sI --max-time 8 "http://195.58.153.30/" | tr -d '\r' | awk 'NR==1{print $2}')"
+http_code="$(curl -sI --max-time 8 "http://195.58.153.30/" 2>/dev/null | tr -d '\r' | awk 'NR==1{print $2}' || true)"
 if [[ "$http_code" =~ ^(200|301|302|404)$ ]]; then pass "http 80 reachable → $http_code"
 elif [[ -z "$http_code" ]]; then echo "SKIP  http 80 (свежий VDS, сайта нет)"
 else bad "http 80 → $http_code"; fi

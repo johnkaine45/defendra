@@ -259,3 +259,13 @@ func TestProjectPortsSkipsRedis(t *testing.T) {
 		t.Fatalf("want 80,8888,3000 got %v", got)
 	}
 }
+
+func TestSuidAllowUbuntu2604SudoWS(t *testing.T) {
+	s := facts.Snapshot{
+		SUID: []string{"/usr/bin/sudo.ws", "/usr/bin/passwd", "/usr/bin/sudo"},
+	}
+	fs := suidChecks(s)
+	if len(fs) != 1 || fs[0].ID != "SUID-UNUSUAL" || fs[0].Status != Pass {
+		t.Fatalf("%+v", fs)
+	}
+}
