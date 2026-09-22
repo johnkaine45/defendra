@@ -36,7 +36,8 @@ type Options struct {
 	Current     string
 	Arch        string
 	Install     func(ctx context.Context, debPath string) error
-	ReadDeb     func(path string) (pkg, ver string, err error)
+	ReadDeb        func(path string) (pkg, ver string, err error)
+	PackageVersion func() string
 }
 
 func Run(ctx context.Context, opt Options) int {
@@ -56,6 +57,10 @@ func Run(ctx context.Context, opt Options) int {
 	cur := strings.TrimPrefix(strings.TrimSpace(opt.Current), "v")
 	if cur == "" {
 		cur = strings.TrimPrefix(version.Version, "v")
+	}
+	dropShadowBinary()
+	if pkg := packageVersion(opt); pkg != "" && versionCmp(pkg, cur) > 0 {
+		cur = pkg
 	}
 
 	u.Println("Смотрю, есть ли новая версия…")
@@ -129,9 +134,41 @@ func Run(ctx context.Context, opt Options) int {
 		u.Println("Не получилось поставить пакет. Попробуйте через 5 минут: sudo defendra update")
 		return 2
 	}
+	dropShadowBinary()
 	u.Println("Готово. Сейчас Defendra " + latest + ".")
 	u.Println("Проверьте защиту: sudo defendra protect")
 	return 0
+}
+
+var (
+	officialBin = "/usr/bin/defendra"
+	shadowBin   = "/usr/local/bin/defendra"
+)
+
+func dropShadowBinary() {
+	if _, err := os.Stat(officialBin); err != nil {
+		return
+	}
+	_ = os.Remove(shadowBin)
+}
+
+func packageVersion(opt Options) string {
+	if opt.PackageVersion != nil {
+		return strings.TrimPrefix(strings.TrimSpace(opt.PackageVersion()), "v")
+	}
+	return installedPackageVersion()
+}
+
+func installedPackageVersion() string {
+	out, err := exec.Command("dpkg-query", "-W", "-f", "${Version}", "defendra").Output()
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimPrefix(strings.TrimSpace(string(out)), "v")
+	if !validReleaseVersion(v) {
+		return ""
+	}
+	return v
 }
 
 func repoURL(opt Options) string {

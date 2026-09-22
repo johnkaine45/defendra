@@ -355,6 +355,37 @@ func TestStreetUnknownSkipped(t *testing.T) {
 	}
 }
 
+func TestNetBirdMeshPortsNotUnexpected(t *testing.T) {
+	s := facts.Snapshot{
+		SSH:  facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no"},
+		Host: facts.HostFact{SSHPort: 22},
+		Ports: []facts.Listen{
+			{Addr: "0.0.0.0", Port: 53, Proto: "udp", Process: "netbird"},
+			{Addr: "0.0.0.0", Port: 53, Proto: "tcp", Process: "netbird"},
+			{Addr: "0.0.0.0", Port: 51820, Proto: "udp", Process: "wg"},
+			{Addr: "0.0.0.0", Port: 12345, Proto: "udp", Process: "game"},
+		},
+		NetBird:  facts.NetBirdFact{Installed: true, Connected: true, SSHEnabled: true, IP: "100.64.1.1"},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{Unattended: true, UnattendedEnabled: true},
+		Sysctl:   map[string]string{"net.ipv4.tcp_syncookies": "1"},
+		Users:    []facts.User{{Name: "admin", UID: 1000, Sudo: true, HasKeys: true}},
+	}
+	fs := Run(s, true, true, nil)
+	for _, f := range fs {
+		if f.ID != "NET-UNEXPECTED-PORT" {
+			continue
+		}
+		if f.Status != Fail || !strings.Contains(f.Plain, "12345/udp") {
+			t.Fatalf("%+v", f)
+		}
+		if strings.Contains(f.Plain, "53") || strings.Contains(f.Plain, "51820") {
+			t.Fatalf("netbird ports flagged: %s", f.Plain)
+		}
+	}
+}
+
 func TestNetBirdPortNotUnexpected(t *testing.T) {
 	s := facts.Snapshot{
 		SSH:  facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", EmptyPasswords: "no"},

@@ -86,6 +86,7 @@ sudo defendra protect
 
 ```text
 Defendra — защита Ubuntu-сервера
+Версия 0.1.30
 
 Сейчас нужно одно:
   sudo defendra protect
@@ -98,6 +99,7 @@ Defendra — защита Ubuntu-сервера
 
 ```text
 Defendra — сервер защищён не полностью
+Версия 0.1.30
 
 Что обычно нужно:
   sudo defendra status         всё ли в порядке

@@ -2,8 +2,17 @@ package ui
 
 import "github.com/johnkaine/defendra/internal/version"
 
+func menuVersion() string {
+	v := version.Version
+	if v == "" {
+		v = "неизвестна"
+	}
+	return "Версия " + v
+}
+
 func MenuFresh() string {
 	return `Defendra — защита Ubuntu-сервера
+` + menuVersion() + `
 
 Сейчас нужно одно:
   sudo defendra protect
@@ -21,7 +30,7 @@ func MenuAfter(level string) string {
 	if level == "red" {
 		title = "Defendra — сервер в опасности"
 	}
-	body := title + `
+	body := title + "\n" + menuVersion() + `
 
 Что обычно нужно:
   sudo defendra status         всё ли в порядке

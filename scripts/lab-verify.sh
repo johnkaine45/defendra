@@ -97,6 +97,7 @@ head -6 /tmp/df-ns.txt
 ')"
 echo "$nonsudo"
 echo "$nonsudo" | grep -q "version=Defendra $VER" && pass "version $VER" || bad "version"
+echo "$nonsudo" | grep -q "Версия $VER" && pass "menu version $VER" || bad "menu version"
 echo "$nonsudo" | grep -q 'menu_exit=0' && pass "menu exit 0" || bad "menu exit"
 echo "$nonsudo" | grep -q 'сервер в порядке' && pass "menu green" || bad "menu green"
 echo "$nonsudo" | grep -q 'how_exit=0' && pass "how-to-login exit 0" || bad "how-to-login"

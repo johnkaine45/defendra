@@ -118,6 +118,21 @@ func TestMenuAfterHasNetBird(t *testing.T) {
 	if !strings.Contains(m, "слабое место") {
 		t.Fatal(m)
 	}
+	if !strings.Contains(m, "Версия ") {
+		t.Fatal(m)
+	}
+}
+
+func TestMenuShowsVersion(t *testing.T) {
+	v := strings.TrimSpace(strings.TrimPrefix(ui.VersionLine(), "Defendra "))
+	fresh := ui.MenuFresh()
+	after := ui.MenuAfter("green")
+	if !strings.Contains(fresh, "Версия "+v) {
+		t.Fatal(fresh)
+	}
+	if !strings.Contains(after, "Версия "+v) {
+		t.Fatal(after)
+	}
 }
 
 func TestHowToLoginRescue(t *testing.T) {

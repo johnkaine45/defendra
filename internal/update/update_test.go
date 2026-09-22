@@ -96,6 +96,49 @@ func TestHostAllowed(t *testing.T) {
 	}
 }
 
+func TestDropShadowBinary(t *testing.T) {
+	dir := t.TempDir()
+	official := filepath.Join(dir, "official")
+	shadow := filepath.Join(dir, "shadow")
+	if err := os.WriteFile(official, []byte("new"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(shadow, []byte("old"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	oldOfficial, oldShadow := officialBin, shadowBin
+	officialBin, shadowBin = official, shadow
+	defer func() { officialBin, shadowBin = oldOfficial, oldShadow }()
+	dropShadowBinary()
+	if _, err := os.Stat(shadow); !os.IsNotExist(err) {
+		t.Fatal("shadow left")
+	}
+	if _, err := os.Stat(official); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrefersNewerPackageVersion(t *testing.T) {
+	srv, _ := testReleaseServer(t, "0.1.29")
+	defer srv.Close()
+	var out bytes.Buffer
+	code := Run(context.Background(), Options{
+		UI:             ui.New(strings.NewReader(""), &out, &out),
+		Client:         srv.Client(),
+		Repo:           srv.URL,
+		Current:        "0.1.28",
+		Arch:           "amd64",
+		PackageVersion: func() string { return "0.1.29" },
+		Install:        func(context.Context, string) error { t.Fatal("must not install"); return nil },
+	})
+	if code != 0 || !strings.Contains(out.String(), "Уже стоит последняя") {
+		t.Fatal(code, out.String())
+	}
+	if !strings.Contains(out.String(), "0.1.29") {
+		t.Fatal(out.String())
+	}
+}
+
 func TestRunAlreadyLatest(t *testing.T) {
 	srv, payload := testReleaseServer(t, "0.1.22")
 	defer srv.Close()

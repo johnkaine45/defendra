@@ -202,7 +202,7 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 			if dbPorts[p.Port] != "" {
 				continue
 			}
-			if skipNetBirdStreet(p) {
+			if NetBirdOwnPort(p, s.NetBird.Connected) {
 				continue
 			}
 			if expected[p.Port] && proto == "tcp" {
@@ -236,10 +236,23 @@ func netChecks(s facts.Snapshot, afterProtect, siteAllowed bool, keepPorts []int
 }
 
 func skipNetBirdStreet(p facts.Listen) bool {
-	if !p.NetBird() {
+	return NetBirdOwnPort(p, false)
+}
+
+func NetBirdOwnPort(p facts.Listen, connected bool) bool {
+	proc := strings.ToLower(p.Process)
+	nb := strings.Contains(proc, "netbird")
+	wg := strings.Contains(proc, "wg")
+	switch p.Port {
+	case 22, 22022:
+		return nb
+	case 51820:
+		return nb || wg || connected
+	case 53:
+		return nb || connected
+	default:
 		return false
 	}
-	return p.Port == 22 || p.Port == 22022
 }
 
 func dockerish(proc string) bool {
