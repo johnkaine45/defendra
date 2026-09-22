@@ -60,11 +60,13 @@ ssh root@СЮДА_IP_ИЗ_ПИСЬМА
 ### 3.2 Установка (уже на сервере)
 
 ```text
-curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
-sudo apt install ./defendra.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra_amd64.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256 -o defendra_amd64.deb.sha256
+sha256sum -c defendra_amd64.deb.sha256
+sudo apt install ./defendra_amd64.deb
 ```
 
-Если `curl: command not found` — в README запасная строка с `wget`. Defendra при отсутствии обоих не при чём: это до неё. В help: «если пишет curl: command not found, выполните sudo apt install curl и повторите».
+Если `curl: command not found` — в README запасные строки с `wget`. Defendra при отсутствии обоих не при чём: это до неё. В help: «если пишет curl: command not found, выполните sudo apt install curl и повторите».
 
 Если процессор ARM — другой файл `defendra_arm64.deb`. Детект в README: «если не ставится — пришлите вывод команды uname -m». Для тупого пользователя в будущем install-скрипт сам выберет файл. В v1 в help есть обе ссылки.
 

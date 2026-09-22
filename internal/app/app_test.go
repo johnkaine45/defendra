@@ -60,8 +60,11 @@ func TestHelpCopy(t *testing.T) {
 	if strings.Contains(h, "ufw disable") || strings.Contains(h, "ufw reset") {
 		t.Fatal(h)
 	}
-	if !strings.Contains(h, "wget -O defendra.deb") {
+	if !strings.Contains(h, "wget -O defendra_amd64.deb") {
 		t.Fatal("help missing wget")
+	}
+	if !strings.Contains(h, "sha256sum -c defendra_amd64.deb.sha256") {
+		t.Fatal("help missing checksum")
 	}
 	if strings.Contains(h, "ssh root@") {
 		t.Fatal("help should not send people to ssh root after protect")

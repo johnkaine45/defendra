@@ -214,6 +214,7 @@ Enter, если спросит перезаписать — напишите n (
 	pw, err := ensureUser(ctx, opt.User, key, !st.HasProtect)
 	if err != nil {
 		u.Printf("Не получилось создать пользователя: %v\n", err)
+		printPasswordBox(u, pw)
 		return 2
 	}
 	sudoPW = pw
@@ -240,6 +241,7 @@ Enter, если спросит перезаписать — напишите n (
 			u.Println("Не получилось поставить пакеты. Сеть или репозиторий Ubuntu. Попробуйте через 5 минут: sudo defendra protect")
 			u.Printf("(%v)\n", err)
 			u.Println("SSH и фильтр не трогаю.")
+			printPasswordBox(u, sudoPW)
 			return 2
 		}
 		ensureSSHListener(ctx)
@@ -253,6 +255,7 @@ Enter, если спросит перезаписать — напишите n (
 	armSSHWatchdog(ctx, snap.Host.SSHPort)
 	if err := setupUFW(ctx, snap.Host.SSHPort, snap, allowPanel, keep); err != nil {
 		u.Printf("Не получилось включить фильтр: %v\nSSH не закрываю.\n", err)
+		printPasswordBox(u, sudoPW)
 		return 2
 	}
 
@@ -688,6 +691,7 @@ func hideDatabases(ctx context.Context, snap facts.Snapshot, u *ui.IO, yes bool)
 		}
 		seen[p.Port] = true
 		if !j.apply() {
+			u.Println(j.name + " слушает всех. Фильтр с улицы его не пускает. Лучше, чтобы программа слушала только на сервере.")
 			continue
 		}
 		if yes {
@@ -823,11 +827,15 @@ func patchListenAddressesFile(path string) bool {
 }
 
 func patchBindAddress() bool {
+	return patchBindAddressIn(
+		[]string{"/etc/mysql/mysql.conf.d/*.cnf", "/etc/mysql/mariadb.conf.d/*.cnf"},
+		[]string{"/etc/mysql/mysql.conf.d", "/etc/mysql/mariadb.conf.d", "/etc/mysql/conf.d"},
+	)
+}
+
+func patchBindAddressIn(globs, dropinDirs []string) bool {
 	changed := false
-	for _, g := range []string{
-		"/etc/mysql/mysql.conf.d/*.cnf",
-		"/etc/mysql/mariadb.conf.d/*.cnf",
-	} {
+	for _, g := range globs {
 		matches, _ := filepath.Glob(g)
 		for _, f := range matches {
 			ok, _ := replaceConfigLine(f, "bind-address", "bind-address = 127.0.0.1")
@@ -836,7 +844,26 @@ func patchBindAddress() bool {
 			}
 		}
 	}
-	return changed
+	if changed {
+		return true
+	}
+	return writeMySQLBindDropin(dropinDirs)
+}
+
+func writeMySQLBindDropin(dirs []string) bool {
+	body := "[mysqld]\nbind-address = 127.0.0.1\n"
+	for _, dir := range dirs {
+		st, err := os.Stat(dir)
+		if err != nil || !st.IsDir() {
+			continue
+		}
+		path := filepath.Join(dir, "zz-defendra.cnf")
+		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func hardenPerms() error {
@@ -984,16 +1011,27 @@ func sshLooksLocked(ctx context.Context, user string, allow []string, clientIP s
 }
 
 func sshMatchLooksLocked(ctx context.Context, user string, allow []string, clientIP string) bool {
+	okCount := 0
+	unlocked := false
 	for _, spec := range sshMatchSpecs(user, clientIP) {
 		match, err := effectiveSSHMatch(ctx, spec)
 		if err != nil {
 			continue
 		}
+		okCount++
 		if !factLooksLocked(match) || !allowUsersApplied(match.AllowUsers, allow) {
-			return false
+			unlocked = true
+			break
 		}
 	}
-	return true
+	return sshMatchVerified(okCount, unlocked)
+}
+
+func sshMatchVerified(okCount int, unlocked bool) bool {
+	if unlocked {
+		return false
+	}
+	return okCount > 0
 }
 
 func sshMatchSpecs(user, clientIP string) []string {
@@ -1359,6 +1397,10 @@ func alreadyQuiet(st state.State, snap facts.Snapshot, keep []int) bool {
 		return false
 	}
 	if firewallGaps(snap) {
+		return false
+	}
+	wantUsers := sshAllowUsers(snap, st.User)
+	if !allowUsersApplied(snap.SSH.AllowUsers, wantUsers) {
 		return false
 	}
 	return samePorts(st.KeepPorts, keep)

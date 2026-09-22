@@ -49,13 +49,15 @@ Defendra **не** делает сервер неуязвимым и **не** о�
 
 Не поддерживаем в v1: Debian, CentOS, Docker Swarm, Kubernetes. Панели ISPmanager/Fastpanel **не настраиваем**, но их порты не закрываем молча, см. шаг 3 и UX.md.
 
-### 3.1 Как ставят (две строки)
+### 3.1 Как ставят (скачать, сверить, поставить)
 
-Новичок не собирает проект. В README и на странице релиза один и тот же копипаст. URL и имя файла появятся вместе с первым релизом; смысл команд не меняется:
+Новичок не собирает проект. В README, help и на странице релиза один и тот же копипаст. Сверяют файл до установки:
 
 ```text
-curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
-sudo apt install ./defendra.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra_amd64.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256 -o defendra_amd64.deb.sha256
+sha256sum -c defendra_amd64.deb.sha256
+sudo apt install ./defendra_amd64.deb
 ```
 
 Потом сразу:
@@ -68,7 +70,7 @@ sudo defendra protect
 
 Недопустимо как основной путь: `git clone`, `go install`, `make`, pip, snap.
 
-Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.21_amd64.deb`. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
+Файл `.deb` сопровождается checksum (SHA256) на той же странице релиза. Имя для копипаста — `defendra_amd64.deb` (latest), плюс версия `defendra_0.1.22_amd64.deb`. README и `defendra help` сверяют файл через `sha256sum -c` до `apt install`. `protect` эти URL сам не качает: установка — действие человека, работа утилиты — локальная.
 
 ## 4. Как это выглядит для пользователя
 
@@ -149,7 +151,7 @@ sudo defendra protect
 - Группа `sudo`.
 - Домашний каталог, `~/.ssh/authorized_keys` mode `600`, `.ssh` mode `700`.
 - Если у `root` уже были ключи — копируются `admin`.
-- Пароль пользователя: случайный, показывается **один раз**, нужен для `sudo` на сервере. Печатается крупно + пишется в `/var/lib/defendra/first-login.txt` (права `600`). Если `admin` уже был, а файла ещё нет — задаём новый пароль один раз на первом protect. Повторно не крутим. В `how-to-login` напоминание: «сохраните пароль sudo, через SSH он не спрашивается».
+- Пароль пользователя: случайный, показывается **один раз**, нужен для `sudo` на сервере. Печатается крупно + пишется в `/var/lib/defendra/first-login.txt` (права `600`). Если `admin` уже был, а файла ещё нет — задаём новый пароль один раз на первом protect. Повторно не крутим. Если после смены пароля protect оборвался (apt, фильтр, sudoers) — коробку всё равно печатаем. В `how-to-login` напоминание: «сохраните пароль sudo, через SSH он не спрашивается».
 - Passwordless sudo в v1 **не** включаем: потеря ноутбука не должна давать полный root без пароля. Для человека это объясняется одной строкой.
 - Учётную запись `root` **не** блокируем (`passwd -l`, `usermod -L`, удаление пароля). Иначе консоль хостера перестанет пускать, и `undo` будет нечем вызвать. Пароль root из письма хостера остаётся для VNC/KVM.
 
@@ -195,7 +197,8 @@ sudo defendra protect
 
 - для **хостовой** службы (профиль fresh-vds) Defendra переводит listen на `127.0.0.1` (Redis, Postgres, MySQL, Mongo, Elasticsearch). Перезапуск — только после вопроса. `--yes` пишет файл и печатает, что с улицы ещё открыто, пока не сделают restart;
 - Docker `-p 0.0.0.0` базу не трогает: статус красный, контейнер жив, на экране прямо сказано, что фильтр это не закроет;
-- если не умеет пропатчить уверенно — не трогает файл, включает UFW deny на этот порт снаружи (уже default deny) и пишет: «сервис слушает всех, но файрвол его прячет; лучше слушать только localhost».
+- если в MySQL/MariaDB нет живой строки `bind-address` — не дописываем её в чужой client.cnf. Пишем свой drop-in `zz-defendra.cnf` в каталог, который Ubuntu уже подключает;
+- если не умеет пропатчить уверенно — не трогает файл, включает UFW deny на этот порт снаружи (уже default deny) и пишет: «слушает всех, фильтр с улицы не пускает; лучше слушать только на сервере».
 
 Не закрываем и не переписываем то, что уже слушает только localhost.
 
@@ -229,7 +232,7 @@ sudo defendra protect
 
 Порт SSH **не меняем**. Смена порта ломает вход из панели и почти не спасает.
 
-Правка через drop-in `/etc/ssh/sshd_config.d/00-defendra.conf` (OpenSSH first-wins), не ломая cloud-init хостера. Потом `sshd -t`, затем `reload` того unit, который сейчас active (`ssh` или `sshd`), не `restart`. На 26.04 после reload снова `start ssh.socket`. После reload читаем `sshd -T`: пароль/root и `AllowUsers` должны совпасть с задуманным, иначе откат drop-in. Текущая сессия должна выжить, чтобы сработал ритуал второго окна (§4.1.1).
+Правка через drop-in `/etc/ssh/sshd_config.d/00-defendra.conf` (OpenSSH first-wins), не ломая cloud-init хостера. Потом `sshd -t`, затем `reload` того unit, который сейчас active (`ssh` или `sshd`), не `restart`. На 26.04 после reload снова `start ssh.socket`. После reload читаем `sshd -T`: пароль/root и `AllowUsers` должны совпасть с задуманным, иначе откат drop-in. `sshd -T -C` (localhost, IP сессии, `user=`) — если ни один вызов не ответил, lock не считаем проверенным и откатываем. Тихий повторный protect пересобирает drop-in, если в `AllowUsers` нет нового пользователя с ключом. Текущая сессия должна выжить, чтобы сработал ритуал второго окна (§4.1.1).
 
 Если gate не пройден — этот шаг пропускается, статус жёлтый, пароль SSH жив, fail2ban уже работает.
 

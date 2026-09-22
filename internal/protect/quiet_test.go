@@ -79,6 +79,28 @@ func TestAlreadyQuietHostDB(t *testing.T) {
 	}
 }
 
+func TestAlreadyQuietNewAllowUser(t *testing.T) {
+	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}, User: "admin"}
+	snap := facts.Snapshot{
+		SSH:      facts.SSHFact{PermitRootLogin: "no", PasswordAuth: "no", AllowUsers: []string{"admin"}},
+		Firewall: facts.Firewall{Active: true, Allows: []string{"22", "80", "443"}},
+		Fail2ban: facts.Fail2ban{Active: true},
+		Packages: facts.Packages{UnattendedEnabled: true},
+		Host:     facts.HostFact{SSHPort: 22},
+		Users: []facts.User{
+			{Name: "admin", UID: 1000, HasKeys: true, Shell: "/bin/bash"},
+			{Name: "deploy", UID: 1001, HasKeys: true, Shell: "/bin/bash"},
+		},
+	}
+	if alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("new keyed user must re-write AllowUsers")
+	}
+	snap.SSH.AllowUsers = []string{"admin", "deploy"}
+	if !alreadyQuiet(st, snap, []int{80, 443}) {
+		t.Fatal("list already has deploy")
+	}
+}
+
 func TestAlreadyQuietUDPGap(t *testing.T) {
 	st := state.State{HasProtect: true, SSHLocked: true, KeepPorts: []int{80, 443}}
 	snap := facts.Snapshot{

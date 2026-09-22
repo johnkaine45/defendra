@@ -179,6 +179,35 @@ func TestReplaceConfigLineDoesNotAppend(t *testing.T) {
 	}
 }
 
+func TestPatchBindAddressWritesDropin(t *testing.T) {
+	dir := t.TempDir()
+	confd := filepath.Join(dir, "mysql.conf.d")
+	if err := os.Mkdir(confd, 0755); err != nil {
+		t.Fatal(err)
+	}
+	client := filepath.Join(confd, "50-client.cnf")
+	if err := os.WriteFile(client, []byte("[client]\nport = 3306\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if !patchBindAddressIn([]string{filepath.Join(confd, "*.cnf")}, []string{confd}) {
+		t.Fatal("expected drop-in")
+	}
+	got, _ := os.ReadFile(filepath.Join(confd, "zz-defendra.cnf"))
+	if !strings.Contains(string(got), "bind-address = 127.0.0.1") {
+		t.Fatal(string(got))
+	}
+	clientBody, _ := os.ReadFile(client)
+	if strings.Contains(string(clientBody), "bind-address") {
+		t.Fatal("must not append to client cnf")
+	}
+}
+
+func TestWriteMySQLBindDropinMissingDir(t *testing.T) {
+	if writeMySQLBindDropin([]string{filepath.Join(t.TempDir(), "nope")}) {
+		t.Fatal("no dir")
+	}
+}
+
 func TestSSHMatchAddr(t *testing.T) {
 	if sshMatchAddr("203.0.113.10") != "203.0.113.10" {
 		t.Fatal("v4")

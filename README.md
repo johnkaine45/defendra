@@ -59,18 +59,22 @@ ssh root@СЮДА_IP_ИЗ_ПИСЬМА
 **2.** Поставьте пакет **на сервере**:
 
 ```bash
-curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
-sudo apt install ./defendra.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra_amd64.deb
+curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256 -o defendra_amd64.deb.sha256
+sha256sum -c defendra_amd64.deb.sha256
+sudo apt install ./defendra_amd64.deb
 ```
 
 Нет `curl`:
 
 ```bash
-wget -O defendra.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
-sudo apt install ./defendra.deb
+wget -O defendra_amd64.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
+wget -O defendra_amd64.deb.sha256 https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256
+sha256sum -c defendra_amd64.deb.sha256
+sudo apt install ./defendra_amd64.deb
 ```
 
-Процессор ARM (`uname -m` пишет `aarch64`) — в ссылке `defendra_arm64.deb`. Проверить файл: рядом лежит `defendra_amd64.deb.sha256`.
+Процессор ARM (`uname -m` пишет `aarch64`) — в имени файла `arm64`, не `amd64`.
 
 **3.** Включите защиту:
 

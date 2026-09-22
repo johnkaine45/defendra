@@ -98,12 +98,16 @@ protect --yes не закрыл пароль SSH
 
 Поставить Defendra
   На сервере:
-    curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra.deb
-    sudo apt install ./defendra.deb
+    curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb -o defendra_amd64.deb
+    curl -fsSL https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256 -o defendra_amd64.deb.sha256
+    sha256sum -c defendra_amd64.deb.sha256
+    sudo apt install ./defendra_amd64.deb
   Нет curl:
-    wget -O defendra.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
-    sudo apt install ./defendra.deb
-  Процессор ARM (uname -m пишет aarch64): нужен defendra_arm64.deb
+    wget -O defendra_amd64.deb https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb
+    wget -O defendra_amd64.deb.sha256 https://github.com/johnkaine45/defendra/releases/latest/download/defendra_amd64.deb.sha256
+    sha256sum -c defendra_amd64.deb.sha256
+    sudo apt install ./defendra_amd64.deb
+  Процессор ARM (uname -m пишет aarch64): в имени файла arm64, не amd64.
 
 Не выключайте фильтр входящих подключений.
 Не ищите в интернете, как его выключить — для сайта есть:

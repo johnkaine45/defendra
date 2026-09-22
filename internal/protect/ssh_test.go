@@ -118,3 +118,15 @@ func TestSSHDropinBodyMaxAuthTries(t *testing.T) {
 		t.Fatal(body)
 	}
 }
+
+func TestSSHMatchVerified(t *testing.T) {
+	if !sshMatchVerified(1, false) {
+		t.Fatal("one ok spec")
+	}
+	if sshMatchVerified(0, false) {
+		t.Fatal("all -C errors must not count as locked")
+	}
+	if sshMatchVerified(2, true) {
+		t.Fatal("unlocked match")
+	}
+}
