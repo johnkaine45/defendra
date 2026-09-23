@@ -9,6 +9,7 @@ import (
 
 	"github.com/johnkaine/defendra/internal/check"
 	"github.com/johnkaine/defendra/internal/facts"
+	"github.com/johnkaine/defendra/internal/ui"
 	"github.com/johnkaine/defendra/internal/version"
 )
 
@@ -187,9 +188,9 @@ func StatusText(s facts.Snapshot, fs []check.Finding, ip, user string) string {
 		if nb == "" {
 			nb = "АДРЕС_NETBIRD"
 		}
-		b.WriteString("\nКак заходить:  ssh " + user + "@" + nb + "  (через NetBird)\n")
+		b.WriteString("\nКак заходить:  " + ui.SSHCommand(user, nb, s.Host.SSHPort) + "  (через NetBird)\n")
 	} else if ip != "" {
-		b.WriteString("\nКак заходить:  ssh " + user + "@" + ip + "\n")
+		b.WriteString("\nКак заходить:  " + ui.SSHCommand(user, ip, s.Host.SSHPort) + "\n")
 	}
 	b.WriteString("Справка:       defendra help\n")
 	return b.String()

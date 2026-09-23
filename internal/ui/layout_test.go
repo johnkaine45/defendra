@@ -22,15 +22,22 @@ func TestPasswordBoxCloses(t *testing.T) {
 }
 
 func TestFirstLockRitualIsShort(t *testing.T) {
-	s := FirstLockRitual("203.0.113.10", "admin")
+	s := FirstLockRitual("203.0.113.10", "admin", 22)
 	if !strings.Contains(s, "ssh admin@203.0.113.10") {
 		t.Fatal(s)
+	}
+	if strings.Contains(s, "-p ") {
+		t.Fatal("default port must omit -p")
 	}
 	if strings.Contains(s, "sudo defendra undo") {
 		t.Fatal("ritual must not dump rescue")
 	}
 	if strings.Contains(s, "how-to-login") {
 		t.Fatal("ritual must not dump help")
+	}
+	s = FirstLockRitual("203.0.113.10", "admin", 54821)
+	if !strings.Contains(s, "ssh -p 54821 admin@203.0.113.10") {
+		t.Fatal(s)
 	}
 }
 

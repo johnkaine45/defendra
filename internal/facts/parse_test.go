@@ -103,6 +103,9 @@ func TestListenPublicIPv6AndMapped(t *testing.T) {
 		{"[::ffff:127.0.0.1]", false},
 		{"fe80::1", false},
 		{"[fe80::1]", false},
+		{"100.64.1.1", false},
+		{"100.127.21.41", false},
+		{"100.63.1.1", true},
 		{"203.0.113.10", true},
 		{"2001:db8::1", true},
 	}

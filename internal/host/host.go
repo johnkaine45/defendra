@@ -60,24 +60,24 @@ func sshConn() (string, int) {
 		}
 		pid = procPPID(pid)
 	}
-	return "", 22
+	return "", 0
 }
 
 func parseSSHConnection(s string) (string, int) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return "", 22
+		return "", 0
 	}
 	parts := strings.Fields(s)
 	if len(parts) < 4 {
 		if len(parts) >= 1 {
-			return parts[0], 22
+			return parts[0], 0
 		}
-		return "", 22
+		return "", 0
 	}
 	port, _ := strconv.Atoi(parts[3])
 	if port == 0 {
-		port = 22
+		return parts[0], 0
 	}
 	return parts[0], port
 }

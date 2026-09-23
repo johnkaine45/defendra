@@ -97,7 +97,29 @@ func (l Listen) Public() bool {
 	if strings.HasPrefix(a, "fe80:") || strings.HasPrefix(a, "[fe80:") {
 		return false
 	}
+	// NetBird / CGNAT 100.64.0.0/10 — not the public street.
+	if isCGNAT100(a) {
+		return false
+	}
 	return true
+}
+
+func isCGNAT100(addr string) bool {
+	a := strings.TrimPrefix(strings.ToLower(addr), "[")
+	a = strings.Split(a, "]")[0]
+	a = strings.Split(a, "/")[0]
+	if !strings.HasPrefix(a, "100.") {
+		return false
+	}
+	parts := strings.Split(a, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	sec, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false
+	}
+	return sec >= 64 && sec <= 127
 }
 
 func (l Listen) NetBird() bool {

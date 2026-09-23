@@ -48,7 +48,7 @@ func PasswordBox(pw string) string {
 	return b.String()
 }
 
-func FirstLockRitual(ip, user string) string {
+func FirstLockRitual(ip, user string, port int) string {
 	if ip == "" {
 		ip = "IP_СЕРВЕРА"
 	}
@@ -60,7 +60,7 @@ func FirstLockRitual(ip, user string) string {
 		"2. На своём компьютере откройте другое окно\n" +
 		"   (не в панели хостера).\n" +
 		"3. Введите:\n\n" +
-		"    ssh " + user + "@" + ip + "\n\n" +
+		"    " + SSHCommand(user, ip, port) + "\n\n" +
 		"Если вошли — это окно можно закрыть.\n" +
 		"Если не вошли — не перезагружайте сервер.\n"
 }

@@ -43,7 +43,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		st := state.Load()
 		u.Print(ui.FormatHowToLogin(ui.LoginHint{
 			IP: st.PublicIP, User: st.User, SSHLocked: st.SSHLocked,
-			StreetOff: st.StreetSSHOff, NetBirdIP: st.NetBirdIP,
+			SSHPort: st.SSHPort, StreetOff: st.StreetSSHOff, NetBirdIP: st.NetBirdIP,
 		}))
 		return 0
 	}

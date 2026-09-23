@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/johnkaine/defendra/internal/version"
@@ -213,11 +214,26 @@ protect --yes не закрыл пароль SSH
 
 type LoginHint struct {
 	IP, User, NetBirdIP  string
+	SSHPort              int
 	SSHLocked, StreetOff bool
 }
 
 func HowToLogin(ip, user string, sshLocked bool) string {
 	return FormatHowToLogin(LoginHint{IP: ip, User: user, SSHLocked: sshLocked})
+}
+
+// SSHCommand formats a street SSH line; port is omitted when 22.
+func SSHCommand(user, host string, port int) string {
+	if user == "" {
+		user = "admin"
+	}
+	if host == "" {
+		host = "IP_СЕРВЕРА"
+	}
+	if port > 0 && port != 22 {
+		return "ssh -p " + strconv.Itoa(port) + " " + user + "@" + host
+	}
+	return "ssh " + user + "@" + host
 }
 
 func FormatHowToLogin(h LoginHint) string {
@@ -237,14 +253,14 @@ func FormatHowToLogin(h LoginHint) string {
 		}
 		body += "Обычный вход с улицы выключен.\n"
 		body += "Заходите через NetBird. На своём компьютере он тоже должен быть включён.\n\n"
-		body += "  ssh " + user + "@" + nb + "\n\n"
+		body += "  " + SSHCommand(user, nb, h.SSHPort) + "\n\n"
 		body += "или:\n\n"
 		body += "  netbird ssh " + user + "@" + nb + "\n\n"
 		body += "С публичного адреса сервера зайти нельзя.\n"
 		body += "Вернуть обычный вход:  sudo defendra street\n\n"
 	} else if h.SSHLocked {
 		body += "Вход только по ключу, пользователь " + user + ":\n\n"
-		body += "  ssh " + user + "@" + ip + "\n\n"
+		body += "  " + SSHCommand(user, ip, h.SSHPort) + "\n\n"
 		body += "Пароль SSH выключен.\n"
 		body += "Permission denied — не тот ключ или другой компьютер.\n\n"
 	} else {
@@ -267,7 +283,7 @@ func FormatHowToLogin(h LoginHint) string {
   3. Команда:  sudo defendra undo
   4. С компьютера, где ключ, после отката:
 
-    ssh ` + user + `@` + ip + `
+    ` + SSHCommand(user, ip, h.SSHPort) + `
 
   Root по SSH после защиты закрыт. Вы уже в консоли хостера —
   сервер не потерян.

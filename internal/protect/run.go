@@ -363,16 +363,16 @@ Enter, если спросит перезаписать — напишите n (
 		if wasLocked {
 			u.Println("Готово. Пароль SSH выключен.")
 			if st.StreetSSHOff {
-				printNetBirdLogin(u, opt.User, st.NetBirdIP)
+				printNetBirdLogin(u, opt.User, st.NetBirdIP, snap3.Host.SSHPort)
 			} else {
-				u.Printf("\nВход:\n\n  ssh %s@%s\n", opt.User, ip)
+				u.Printf("\nВход:\n\n  %s\n", ui.SSHCommand(opt.User, ip, snap3.Host.SSHPort))
 			}
 			if code != 0 {
 				u.Print("\n" + ui.PaintFirstLine(report.StatusText(snap3, fs, ip, opt.User), st.Level, u.Color))
 			}
 			return code
 		}
-		u.Print("\n" + ui.FirstLockRitual(ip, opt.User))
+		u.Print("\n" + ui.FirstLockRitual(ip, opt.User, snap3.Host.SSHPort))
 		printPasswordBox(u, sudoPW)
 		u.Print("\n" + ui.PasswordRoles())
 		u.Print("\n" + ui.FirstLockNext())

@@ -159,7 +159,7 @@ func StreetOff(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	}
 	if st.StreetSSHOff && snap.SSH.ListenerKnown && !snap.SSH.ListenerActive {
 		u.Println("Обычный вход с улицы уже выключен.")
-		printNetBirdLogin(u, user, netBirdIP(st, snap))
+		printNetBirdLogin(u, user, netBirdIP(st, snap), snap.Host.SSHPort)
 		u.Println("\nВернуть обычную службу входа:\n\n  sudo defendra street")
 		return 0
 	}
@@ -202,7 +202,7 @@ func StreetOff(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	}
 	_ = state.Save(st)
 	u.Println("Обычную службу входа с улицы выключил. Заходите через NetBird.")
-	printNetBirdLogin(u, user, st.NetBirdIP)
+	printNetBirdLogin(u, user, st.NetBirdIP, snap.Host.SSHPort)
 	return 0
 }
 
@@ -231,7 +231,7 @@ func StreetOn(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 	if streetListenerUp(ctx) && !st.StreetSSHOff {
 		u.Println("Обычная служба входа уже работает.")
 		if ip := snap.Host.PublicIP; ip != "" {
-			u.Printf("\nВход с улицы:\n\n  ssh %s@%s\n", user, ip)
+			u.Printf("\nВход с улицы:\n\n  %s\n", ui.SSHCommand(user, ip, port))
 		}
 		return 0
 	}
@@ -271,10 +271,10 @@ func StreetOn(ctx context.Context, hi host.Info, u *ui.IO, yes, dry bool) int {
 		ip = st.PublicIP
 	}
 	if ip != "" {
-		u.Printf("\nВход с улицы:\n\n  ssh %s@%s\n", user, ip)
+		u.Printf("\nВход с улицы:\n\n  %s\n", ui.SSHCommand(user, ip, port))
 	}
 	if nb := netBirdIP(st, snap); nb != "" {
-		u.Printf("\nЧерез NetBird по-прежнему:\n\n  ssh %s@%s\n", user, nb)
+		u.Printf("\nЧерез NetBird по-прежнему:\n\n  %s\n", ui.SSHCommand(user, nb, port))
 	}
 	return 0
 }
@@ -286,13 +286,13 @@ func netBirdIP(st state.State, snap facts.Snapshot) string {
 	return st.NetBirdIP
 }
 
-func printNetBirdLogin(u *ui.IO, user, ip string) {
+func printNetBirdLogin(u *ui.IO, user, ip string, port int) {
 	if user == "" {
 		user = "admin"
 	}
 	if ip == "" {
 		ip = "АДРЕС_NETBIRD"
 	}
-	u.Printf("\nВход через NetBird (на своём компьютере он тоже должен быть):\n\n  ssh %s@%s\n", user, ip)
+	u.Printf("\nВход через NetBird (на своём компьютере он тоже должен быть):\n\n  %s\n", ui.SSHCommand(user, ip, port))
 	u.Printf("\nили:\n\n  netbird ssh %s@%s\n", user, ip)
 }

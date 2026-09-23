@@ -180,14 +180,20 @@ func TestHowToLoginRescue(t *testing.T) {
 	if strings.Contains(s, "ssh root@") {
 		t.Fatal("rescue promised root SSH")
 	}
+	s = ui.FormatHowToLogin(ui.LoginHint{
+		IP: "203.0.113.10", User: "admin", SSHLocked: true, SSHPort: 54821,
+	})
+	if !strings.Contains(s, "ssh -p 54821 admin@203.0.113.10") {
+		t.Fatal(s)
+	}
 }
 
 func TestHowToLoginStreetOff(t *testing.T) {
 	s := ui.FormatHowToLogin(ui.LoginHint{
 		IP: "195.58.153.30", User: "admin", SSHLocked: true,
-		StreetOff: true, NetBirdIP: "100.64.1.2",
+		StreetOff: true, NetBirdIP: "100.64.1.2", SSHPort: 54821,
 	})
-	if !strings.Contains(s, "ssh admin@100.64.1.2") {
+	if !strings.Contains(s, "ssh -p 54821 admin@100.64.1.2") {
 		t.Fatal(s)
 	}
 	if !strings.Contains(s, "Обычный вход с улицы выключен") {

@@ -43,13 +43,9 @@ func collect(ctx context.Context, hi host.Info, extra bool) Snapshot {
 	s.SSH.ListenerKnown = true
 	s.SSH.ListenerActive = collectSSHListener(ctx)
 	s.NetBird = collectNetBird(ctx)
-	if s.Host.SSHPort == 0 {
-		if s.SSH.Port != 0 {
-			s.Host.SSHPort = s.SSH.Port
-		} else {
-			s.Host.SSHPort = 22
-		}
-	}
+	// System SSH port is what sshd uses — never the NetBird hop (often 22022)
+	// from SSH_CONNECTION of this admin session.
+	s.Host.SSHPort = systemSSHPort(s.SSH.Port, hi.SSHPort)
 	s.Users = collectUsers()
 	s.Ports = collectPorts(ctx)
 	s.Firewall = collectFirewall(ctx)
@@ -63,6 +59,18 @@ func collect(ctx context.Context, hi host.Info, extra bool) Snapshot {
 		s.SUID = collectSUID(ctx)
 	}
 	return s
+}
+
+// systemSSHPort prefers sshd's configured port over the current SSH session port.
+// Sessions via NetBird often report 22022 and must not drive UFW/status checks.
+func systemSSHPort(sshdPort, sessionPort int) int {
+	if sshdPort > 0 {
+		return sshdPort
+	}
+	if sessionPort > 0 && sessionPort != 22022 {
+		return sessionPort
+	}
+	return 22
 }
 
 func collectSSH(ctx context.Context) SSHFact {
